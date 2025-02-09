@@ -158,6 +158,7 @@ use following libraries for specific functionalities:
 ## Supabase
 
 - if you need to add new table, please show me the create query sql. I'll paste it into supabase.
+- when you create supabaes query always include drop is exist in front of the query statement.
 - store sql query for `.sql` file. in /database/sql/
 
 ## Package Manager

@@ -6,8 +6,7 @@ export const signInWithEmail = async (email: string, password: string) => {
     email,
     password,
   });
-  console.log("data", data);
-  console.log("error", error);
+
   if (error) throw error;
   return data;
 };
@@ -27,8 +26,7 @@ export const signUpWithEmail = async (
     },
   });
 
-  console.log("signUpWithEmail data", data);
-  console.log("signUpWithEmail error", error);
+
 
   // 기타 에러가 있는 경우
   if (error) throw error;

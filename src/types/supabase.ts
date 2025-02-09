@@ -1,4 +1,3 @@
-
 export type Database = {
   public: {
     Tables: {
@@ -31,7 +30,51 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
-      }
+      },
+      teams: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          logo_url: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string;
+        };
+        Insert: {
+          name: string;
+          description?: string | null;
+          logo_url?: string | null;
+          created_by: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          logo_url?: string | null;
+        };
+      },
+      team_members: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          role: 'admin' | 'member';
+          status: 'active' | 'inactive' | 'pending';
+          joined_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      },
+      team_invites: {
+        Row: {
+          id: string;
+          team_id: string;
+          email: string;
+          invited_by: string;
+          expires_at: string;
+          created_at: string;
+        };
+      },
     }
     Views: {
       [_ in never]: never

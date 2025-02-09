@@ -38,7 +38,6 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<MessageType | null>(null);
   const setSession = useAuthStore((state) => state.setSession);
-  const setProfile = useAuthStore((state) => state.setProfile);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -55,16 +54,6 @@ export function LoginForm() {
 
       if (response.session) {
         setSession(response.session);
-        const userMetadata = response.user.user_metadata;
-        setProfile({
-          id: response.user.id,
-          email: response.user.email,
-          username: userMetadata.username,
-          full_name: userMetadata.full_name || null,
-          avatar_url: userMetadata.avatar_url || null,
-          created_at: response.user.created_at,
-          updated_at: response.user.updated_at,
-        });
         router.push("/");
       }
     } catch (error: any) {
