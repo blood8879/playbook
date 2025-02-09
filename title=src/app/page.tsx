@@ -3,19 +3,9 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth";
-import { signOut } from "@/features/auth/api";
 
 export default function LandingPage() {
   const { session, profile } = useAuthStore();
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      window.location.href = "/"; // 로그아웃 후 새로고침
-    } catch (error) {
-      console.error("로그아웃 실패:", error);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -23,26 +13,16 @@ export default function LandingPage() {
         <h1 className="text-3xl font-bold">Playbook</h1>
         <nav>
           <ul className="flex items-center space-x-4">
-            {session ? (
-              <li>
-                <Button variant="ghost" onClick={handleSignOut}>
-                  로그아웃
-                </Button>
-              </li>
-            ) : (
-              <>
-                <li>
-                  <Link href="/login">
-                    <Button variant="link">로그인</Button>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/signup">
-                    <Button>회원가입</Button>
-                  </Link>
-                </li>
-              </>
-            )}
+            <li>
+              <Link href="/login">
+                <Button variant="link">로그인</Button>
+              </Link>
+            </li>
+            <li>
+              <Link href="/signup">
+                <Button>회원가입</Button>
+              </Link>
+            </li>
           </ul>
         </nav>
       </header>
@@ -59,18 +39,16 @@ export default function LandingPage() {
             ? `${profile?.username || profile?.email}님 로그인중`
             : "비로그인"}
         </p>
-        {!session && (
-          <div className="space-x-4">
-            <Link href="/login">
-              <Button className="px-6 py-3">로그인</Button>
-            </Link>
-            <Link href="/signup">
-              <Button variant="outline" className="px-6 py-3">
-                회원가입
-              </Button>
-            </Link>
-          </div>
-        )}
+        <div className="space-x-4">
+          <Link href="/login">
+            <Button className="px-6 py-3">로그인</Button>
+          </Link>
+          <Link href="/signup">
+            <Button variant="outline" className="px-6 py-3">
+              회원가입
+            </Button>
+          </Link>
+        </div>
       </main>
       <footer className="py-4 text-center">
         <p className="text-sm text-muted-foreground">
