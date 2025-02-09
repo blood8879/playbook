@@ -12,7 +12,13 @@ export async function middleware(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   // 공개 경로 (인증 없이 접근 가능한 페이지)
-  const publicRoutes = ["/", "/login", "/signup"];
+  const publicRoutes = [
+    "/",
+    "/login",
+    "/signup",
+    "/reset-password",
+    "/auth/callback/reset-password",
+  ];
 
   // 공개 경로라면 무조건 접근 (단, /login 페이지에 로그인된 사용자가 접근할 경우 홈으로 리디렉션)
   if (publicRoutes.includes(pathname)) {

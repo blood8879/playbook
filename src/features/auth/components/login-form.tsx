@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -176,11 +177,21 @@ export function LoginForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={!!isLoading}>
-                {isLoading === "email" ? "로그인 중..." : "로그인"}
-              </Button>
+              <div className="flex items-center justify-between">
+                <Button type="submit" className="w-full" disabled={!!isLoading}>
+                  {isLoading === "email" ? "로그인 중..." : "로그인"}
+                </Button>
+              </div>
             </form>
           </Form>
+          <div className="text-center">
+            <Link
+              href="/reset-password"
+              className="text-sm text-muted-foreground hover:text-primary"
+            >
+              비밀번호를 잊으셨나요?
+            </Link>
+          </div>
         </div>
       </CardContent>
     </Card>

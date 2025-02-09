@@ -50,7 +50,7 @@ export function SignupForm() {
 
   const onSubmit = async (data: SignupFormValues) => {
     try {
-      setIsLoading(true);
+      setIsLoading("email");
       const response = await signUpWithEmail(
         data.email,
         data.password,
@@ -78,8 +78,7 @@ export function SignupForm() {
         type: "error",
       });
     } finally {
-      // @ts-expect-error
-      setIsLoading(false);
+      setIsLoading(null);
     }
   };
 
@@ -198,8 +197,8 @@ export function SignupForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "회원가입 중..." : "회원가입"}
+              <Button type="submit" className="w-full" disabled={!!isLoading}>
+                {isLoading === "email" ? "회원가입 중..." : "회원가입"}
               </Button>
             </form>
           </Form>
