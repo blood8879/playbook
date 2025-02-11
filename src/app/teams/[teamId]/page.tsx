@@ -29,13 +29,23 @@ export default function TeamDetailPage({
 
   if (!team) return <div>로딩 중...</div>;
 
+  // 현재 사용자가 members 목록에 포함되어 있고 역할이 admin인지 확인합니다.
+  const isAdmin = members?.some(
+    (member) => member.user_id === user?.id && member.role === "admin"
+  );
+
+  console.log("user", user);
+  console.log("members", members);
+
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">{team.name}</h1>
-        <Link href={`/teams/${teamId}/manage`}>
-          <Button variant="outline">팀 관리</Button>
-        </Link>
+        {isAdmin && (
+          <Link href={`/teams/${teamId}/manage`}>
+            <Button variant="outline">팀 관리</Button>
+          </Link>
+        )}
       </div>
 
       {team.description && (
