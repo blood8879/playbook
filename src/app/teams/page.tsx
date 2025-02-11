@@ -5,16 +5,17 @@ import { teamsApi } from "@/features/teams/api";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/components/auth-provider";
-
+import Image from "next/image";
 export default function TeamsPage() {
   const { user, loading } = useAuth();
-  console.log("user", user);
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
-    queryFn: teamsApi.getTeams,
+    queryFn: teamsApi.getMyTeams,
     enabled: !!user, // 로그인된 상태에서만 쿼리 실행
   });
+
+  console.log("teams on teams page", teams);
 
   if (loading) {
     return <div>로딩 중...</div>;
@@ -42,7 +43,7 @@ export default function TeamsPage() {
             <Link href={`/teams/${team.id}`}>
               <div className="space-y-2">
                 {team.logo_url && (
-                  <img
+                  <Image
                     src={team.logo_url}
                     alt={team.name}
                     className="w-full h-40 object-cover rounded-md"

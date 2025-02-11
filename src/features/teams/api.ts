@@ -65,6 +65,10 @@ export const teamsApi = {
       .eq('team_id', teamId)
       .eq('user_id', userId);
 
+    console.log("removeTeamMember teamId", teamId);
+    console.log("removeTeamMember userId", userId);
+    console.log("removeTeamMember error", error);
+
     if (error) throw error;
   },
 
@@ -113,6 +117,30 @@ export const teamsApi = {
     }
 
     return (data ?? []) as Team[]; // 데이터가 없으면 빈 배열 반환
+  },
+
+  // 내 팀 목록 조회
+  async getMyTeams() {
+    // 현재 인증된 사용자의 정보를 가져옴
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user.id;
+
+    console.log("userId", userId);
+
+    // 팀 멤버 테이블에서 가입 상태가 active인 경우만 join 수행
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('teams (*)')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    console.log("my teams data", data);
+    console.log("my teams error", error);
+    if (error) throw error;
+
+    // 각 팀원 로우(row)에 auto-generated 관계로 채워진 teams 필드를 추출
+    return (data ?? []).flatMap((row: any) => row.teams) as Team[];
   },
 
   // 팀 상세 조회
@@ -199,13 +227,19 @@ export const teamsApi = {
       .eq('id', inviteId)
       .single();
 
+    console.log("invite", invite);
+    console.log("inviteError", inviteError);
+
     if (inviteError) throw inviteError;
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;
 
+    console.log("userData on acceptInvite", userData);
+    console.log("userError on acceptInvite", userError);
+
     // 팀 멤버로 추가
-    const { error: memberError } = await supabase
+    const { data: member, error: memberError } = await supabase
       .from('team_members')
       .insert({
         team_id: invite.team_id,
@@ -215,6 +249,9 @@ export const teamsApi = {
         joined_at: new Date().toISOString(),
       });
 
+    console.log("member", member);
+    console.log("memberError", memberError);  
+
     if (memberError) throw memberError;
 
     // 초대 삭제
@@ -222,6 +259,8 @@ export const teamsApi = {
       .from('team_invites')
       .delete()
       .eq('id', inviteId);
+
+    console.log("deleteError", deleteError);
 
     if (deleteError) throw deleteError;
   },

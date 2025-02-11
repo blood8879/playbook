@@ -19,33 +19,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="py-6 px-4 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Playbook</h1>
-        <nav>
-          <ul className="flex items-center space-x-4">
-            {session ? (
-              <li>
-                <Button variant="ghost" onClick={handleSignOut}>
-                  로그아웃
-                </Button>
-              </li>
-            ) : (
-              <>
-                <li>
-                  <Link href="/login">
-                    <Button variant="link">로그인</Button>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/signup">
-                    <Button>회원가입</Button>
-                  </Link>
-                </li>
-              </>
-            )}
-          </ul>
-        </nav>
-      </header>
       <main className="flex flex-grow flex-col items-center justify-center px-4 text-center">
         <h2 className="text-4xl font-bold mb-4">
           아마추어 축구 동호인을 위한 기록 관리 서비스
@@ -54,11 +27,7 @@ export default function LandingPage() {
           Playbook은 경기 결과, 개인 기록 및 팀 통계를 한눈에 확인하고 관리할 수
           있는 스마트한 서비스입니다.
         </p>
-        <p className="mb-4 text-lg font-medium">
-          {session
-            ? `${profile?.username || profile?.email}님 로그인중`
-            : "비로그인"}
-        </p>
+
         {!session && (
           <div className="space-x-4">
             <Link href="/login">
