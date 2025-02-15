@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import supabase from "@/lib/supabase/client";
+import { useSupabase } from "@/lib/supabase/client";
 import { AuthLayout } from "@/components/ui/auth-layout";
 
 // Kakao 아이콘 컴포넌트
@@ -65,6 +65,7 @@ export default function LoginPage() {
   });
   const router = useRouter();
   const [apiError, setApiError] = useState<string | null>(null);
+  const { supabase } = useSupabase();
 
   // 이메일/비밀번호 로그인 처리
   const onSubmit = async (data: LoginFormInputs) => {

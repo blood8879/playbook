@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function updateSession(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options });
           supabaseResponse = NextResponse.next({
             request: {
@@ -24,7 +24,7 @@ export async function updateSession(request: NextRequest) {
           });
           supabaseResponse.cookies.set({ name, value, ...options });
         },
-        remove(name: string, options: any) {
+        remove(name: string, options: CookieOptions) {
           request.cookies.delete({ name, ...options });
           supabaseResponse = NextResponse.next({
             request: {
