@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { TeamFormData, Team } from "./types";
+import { TeamFormData, Team, TeamInvitation } from "./types";
 import { TeamMember, TeamMemberRole, TeamMemberStatus } from "./types/index";
 
 export async function searchTeams(
@@ -125,9 +125,10 @@ export async function updateTeamMember(
 export async function inviteTeamMember(
   supabase: SupabaseClient,
   teamId: string,
-  email: string
+  email: string,
+  inviterId: string
 ) {
-  // 1. 먼저 해당 이메일의 사용자를 찾습니다
+  // 1. 해당 이메일의 사용자를 찾습니다.
   const { data: user, error: userError } = await supabase
     .from("users")
     .select("id")
@@ -137,7 +138,7 @@ export async function inviteTeamMember(
   if (userError) throw userError;
   if (!user) throw new Error("사용자를 찾을 수 없습니다");
 
-  // 2. 이미 팀 멤버인지 확인
+  // 2. 이미 팀 멤버인지 확인합니다.
   const { data: existingMember, error: memberError } = await supabase
     .from("team_members")
     .select("id")
@@ -148,12 +149,12 @@ export async function inviteTeamMember(
   if (memberError && memberError.code !== "PGRST116") throw memberError;
   if (existingMember) throw new Error("이미 팀 멤버입니다");
 
-  // 3. 초대를 생성합니다
+  // 3. 초대를 생성합니다.
   const { error: inviteError } = await supabase
     .from("team_invitations")
     .insert({
       team_id: teamId,
-      inviter_id: auth.uid(),
+      inviter_id: inviterId,
       invitee_id: user.id,
     });
 
@@ -189,7 +190,7 @@ export async function getMyInvitations(supabase: SupabaseClient) {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data as TeamInvitation[];
+  return data as unknown as TeamInvitation[];
 }
 
 export async function respondToInvitation(

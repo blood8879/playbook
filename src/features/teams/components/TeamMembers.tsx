@@ -38,7 +38,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
-
+  const { user } = useSupabase();
   const { data: members, isLoading } = useQuery({
     queryKey: ["teamMembers", teamId],
     queryFn: () => getTeamMembers(supabase, teamId),
@@ -48,14 +48,15 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     mutationFn: ({ memberId, data }: { memberId: string; data: any }) =>
       updateTeamMember(supabase, memberId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(["teamMembers", teamId]);
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
     },
   });
 
   const inviteMutation = useMutation({
-    mutationFn: (email: string) => inviteTeamMember(supabase, teamId, email),
+    mutationFn: (email: string) =>
+      inviteTeamMember(supabase, teamId, email, user?.id),
     onSuccess: () => {
-      queryClient.invalidateQueries(["teamMembers", teamId]);
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
       setIsInviteDialogOpen(false);
       setInviteEmail("");
     },
@@ -64,7 +65,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   const removeMutation = useMutation({
     mutationFn: (memberId: string) => removeTeamMember(supabase, memberId),
     onSuccess: () => {
-      queryClient.invalidateQueries(["teamMembers", teamId]);
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
     },
   });
 
@@ -113,8 +114,8 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
-                <Button type="submit" disabled={inviteMutation.isLoading}>
-                  {inviteMutation.isLoading ? "초대 중..." : "초대하기"}
+                <Button type="submit" disabled={inviteMutation.isPending}>
+                  {inviteMutation.isPending ? "초대 중..." : "초대하기"}
                 </Button>
               </form>
             </DialogContent>

@@ -25,14 +25,14 @@ export async function updateSession(request: NextRequest) {
           supabaseResponse.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.delete({ name, ...options });
+          request.cookies.delete(name);
           supabaseResponse = NextResponse.next({
             request: {
               ...request,
               headers: new Headers(request.headers),
             },
           });
-          supabaseResponse.cookies.delete({ name, ...options });
+          supabaseResponse.cookies.delete(name);
         },
       },
     }

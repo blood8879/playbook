@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
@@ -8,7 +9,7 @@ import { area } from "@/constants/area";
 import { TeamFormData } from "../types";
 
 interface TeamFormProps {
-  onSubmit: (data: TeamFormData) => Promise<void>;
+  onSubmit: (event?: React.BaseSyntheticEvent) => Promise<void>;
   isUploading: boolean;
   emblemFile: File | null;
   previewUrl: string | null;
