@@ -1,13 +1,21 @@
+"use client";
+
 import { Team } from "../types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
 
 interface TeamCardProps {
   team: Team;
 }
 
 export function TeamCard({ team }: TeamCardProps) {
+  const router = useRouter();
+
   return (
-    <Card>
+    <Card
+      className="cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => router.push(`/teams/${team.id}`)}
+    >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {team.emblem_url && (

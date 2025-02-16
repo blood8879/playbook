@@ -53,3 +53,14 @@ export async function createTeam(
 
   if (error) throw error;
 }
+
+export async function getTeamById(supabase: SupabaseClient, teamId: string) {
+  const { data, error } = await supabase
+    .from("teams")
+    .select("*")
+    .eq("id", teamId)
+    .single();
+
+  if (error) throw error;
+  return data as Team;
+}

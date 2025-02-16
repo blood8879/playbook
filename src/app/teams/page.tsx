@@ -8,6 +8,7 @@ import { useState } from "react";
 import { TeamCard } from "@/features/teams/components/TeamCard";
 import { CreateTeamDialog } from "@/features/teams/components/CreateTeamDialog";
 import { searchTeams } from "@/features/teams/api";
+import { TeamCardSkeleton } from "@/features/teams/components/TeamCardSkeleton";
 
 export default function TeamsPage() {
   const { supabase, user } = useSupabase();
@@ -37,15 +38,20 @@ export default function TeamsPage() {
         {user && <CreateTeamDialog onSuccess={refetch} />}
       </div>
 
-      {isLoading ? (
-        <div>로딩 중...</div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {teams?.map((team) => (
-            <TeamCard key={team.id} team={team} />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {isLoading ? (
+          <>
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+          </>
+        ) : (
+          teams?.map((team) => <TeamCard key={team.id} team={team} />)
+        )}
+      </div>
     </div>
   );
 }
