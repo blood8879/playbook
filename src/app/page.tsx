@@ -1,5 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server";
-import { Header } from "@/components/layout/header";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
@@ -12,7 +12,6 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header />
       <main className="flex-1">
         {user ? (
           // 로그인 상태 화면
