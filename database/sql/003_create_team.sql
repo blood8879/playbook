@@ -107,3 +107,20 @@ create trigger update_team_members_updated_at
   before update on team_members
   for each row
   execute function update_updated_at();
+
+-- team_members RLS를 우회해, 특정 user가 특정 team의 멤버인지 확인하는 함수
+create or replace function is_active_member(team uuid, "user" uuid)
+returns boolean
+security definer
+as $$
+  select exists(
+    select 1 
+    from team_members
+    where team_id = team
+      and user_id = "user"
+      and status = 'active'
+  );
+$$ language sql stable;
+
+-- 함수에 대해서는 PUBLIC이 실행할 권한을 부여
+grant execute on function is_active_member(uuid, uuid) to public;

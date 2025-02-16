@@ -1,14 +1,19 @@
 "use client";
 
 import { Team } from "../types";
+import { useSupabase } from "@/lib/supabase/client";
+import { TeamMembers } from "./TeamMembers";
 
 interface TeamDetailProps {
   team: Team;
 }
 
 export function TeamDetail({ team }: TeamDetailProps) {
+  const { user } = useSupabase();
+  const isLeader = team.leader_id === user?.id;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center gap-4">
         {team.emblem_url && (
           <img
@@ -32,7 +37,7 @@ export function TeamDetail({ team }: TeamDetailProps) {
         </div>
       )}
 
-      {/* 추후 팀원 목록, 경기 기록 등 추가 */}
+      <TeamMembers teamId={team.id} isLeader={isLeader} />
     </div>
   );
 }

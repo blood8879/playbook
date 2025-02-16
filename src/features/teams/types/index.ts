@@ -22,3 +22,42 @@ export interface Team {
   gu: string;
   leader_id: string;
 }
+
+export type TeamMemberRole = "leader" | "manager" | "member";
+export type TeamMemberStatus = "pending" | "active" | "inactive";
+
+export interface TeamMember {
+  id: string;
+  team_id: string;
+  user_id: string;
+  role: TeamMemberRole;
+  status: TeamMemberStatus;
+  created_at: string;
+  updated_at: string;
+  // profiles 테이블과 join된 데이터
+  user: {
+    email: string;
+    name: string;
+    avatar_url: string | null;
+  };
+}
+
+export type InvitationStatus = "pending" | "accepted" | "rejected" | "expired";
+
+export interface TeamInvitation {
+  id: string;
+  team_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: InvitationStatus;
+  created_at: string;
+  expires_at: string;
+  // join된 데이터
+  team: {
+    name: string;
+  };
+  inviter: {
+    email: string;
+    name: string;
+  };
+}
