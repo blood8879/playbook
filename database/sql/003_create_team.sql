@@ -1,11 +1,15 @@
 -- 팀 테이블
+
 create table teams (
   id uuid default gen_random_uuid() primary key,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   name text not null,
   description text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  created_by uuid references auth.users(id) not null
+  emblem_url text,
+  city text not null,
+  gu text not null,
+  leader_id uuid references auth.users(id) not null,
+  unique(name)
 );
 
 -- 팀 멤버 테이블 (팀원 관리용)
@@ -24,39 +28,20 @@ create table team_members (
 alter table teams enable row level security;
 alter table team_members enable row level security;
 
--- teams 테이블 정책
-create policy "팀 생성은 인증된 사용자만 가능" on teams
-  for insert to authenticated
-  with check (true);
+-- 누구나 조회 가능
+create policy "Teams are viewable by everyone" on teams
+  for select using (true);
 
-create policy "팀 조회는 팀 멤버만 가능" on teams
-  for select using (
-    exists (
-      select 1 from team_members tm
-      where tm.team_id = id
-      and tm.user_id = auth.uid()
-    )
-  );
+-- 인증된 사용자만 생성 가능  
+create policy "Authenticated users can create teams" on teams
+  for insert with check (auth.role() = 'authenticated');
 
-create policy "팀 수정은 owner/admin만 가능" on teams
-  for update using (
-    exists (
-      select 1 from team_members tm
-      where tm.team_id = id
-      and tm.user_id = auth.uid()
-      and tm.role in ('owner', 'admin')
-    )
-  );
+-- 팀 리더만 수정/삭제 가능
+create policy "Team leaders can update their teams" on teams
+  for update using (auth.uid() = leader_id);
 
-create policy "팀 삭제는 owner만 가능" on teams
-  for delete using (
-    exists (
-      select 1 from team_members tm
-      where tm.team_id = id
-      and tm.user_id = auth.uid()
-      and tm.role = 'owner'
-    )
-  );
+create policy "Team leaders can delete their teams" on teams
+  for delete using (auth.uid() = leader_id);
 
 -- team_members 테이블 정책
 create policy "팀 멤버 추가는 owner/admin만 가능" on team_members
