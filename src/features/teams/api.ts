@@ -82,17 +82,16 @@ export const getTeamMembers = async (
 ) => {
   const { data, error } = await supabase
     .from("team_members")
-
     .select(
       `
-      *,
-      profiles:profiles!user_id(
-        id,
-        email,
-        raw_user_meta_data->>name,
-        raw_user_meta_data->>avatar_url
-      )
-      `
+    *,
+    profiles:profiles!user_id(
+      id,
+      email,
+      raw_user_meta_data->>name,
+      raw_user_meta_data->>avatar_url
+    )
+    `
     )
     .eq("team_id", teamId)
     .order("role", { ascending: false })
@@ -130,10 +129,13 @@ export async function inviteTeamMember(
 ) {
   // 1. 해당 이메일의 사용자를 찾습니다.
   const { data: user, error: userError } = await supabase
-    .from("users")
+    .from("profiles")
     .select("id")
     .eq("email", email)
     .single();
+
+  console.log("invite user", user);
+  console.log("invite userError", userError);
 
   if (userError) throw userError;
   if (!user) throw new Error("사용자를 찾을 수 없습니다");
@@ -146,17 +148,23 @@ export async function inviteTeamMember(
     .eq("user_id", user.id)
     .single();
 
+  console.log("invite existingMember", existingMember);
+  console.log("invite memberError", memberError);
+
   if (memberError && memberError.code !== "PGRST116") throw memberError;
   if (existingMember) throw new Error("이미 팀 멤버입니다");
 
   // 3. 초대를 생성합니다.
-  const { error: inviteError } = await supabase
+  const { data: invite, error: inviteError } = await supabase
     .from("team_invitations")
     .insert({
       team_id: teamId,
       inviter_id: inviterId,
       invitee_id: user.id,
     });
+
+  console.log("invite invite", invite);
+  console.log("invite inviteError", inviteError);
 
   if (inviteError) throw inviteError;
 }
