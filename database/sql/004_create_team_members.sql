@@ -72,3 +72,49 @@ create trigger team_members_updated
   before update on team_members
   for each row
   execute procedure handle_team_member_updated(); 
+
+CREATE POLICY "Allow invitees to insert themselves into team"
+ON public.team_members
+FOR INSERT
+TO public
+-- 이 행을 읽을 수 있는지 결정 (INSERT의 경우, “이 사용자가 INSERT를 수행할 수 있느냐”)
+USING (
+  auth.uid() = user_id
+)
+-- with check: 삽입되는 행이 유효한지 판단 (여기서는 “row.user_id가 auth.uid() 인가?”)
+WITH CHECK (
+  auth.uid() = user_id
+);
+
+create trigger team_leader_check
+before insert on team_members -- replace with your actual table name
+for each row execute procedure check_team_leader();
+
+CREATE OR REPLACE FUNCTION check_team_leader()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- 초대받은 유저면 바로 삽입 허용
+  IF EXISTS (
+    SELECT 1 
+    FROM team_invitations
+    WHERE invitee_id = NEW.user_id
+      AND team_id   = NEW.team_id
+      AND status    = 'pending'
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  -- 아니면, 기존 로직처럼 owner/admin인지 확인
+  IF NOT EXISTS (
+    SELECT 1
+    FROM team_members
+    WHERE user_id = NEW.user_id
+      AND team_id = NEW.team_id
+      AND role IN ('owner','admin')
+  ) THEN
+    RAISE EXCEPTION 'User is not a team owner/admin';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;

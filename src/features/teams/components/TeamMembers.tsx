@@ -63,7 +63,8 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (memberId: string) => removeTeamMember(supabase, memberId),
+    mutationFn: ({ memberId, teamId }: { memberId: string; teamId: string }) =>
+      removeTeamMember(supabase, memberId, teamId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
     },
@@ -145,6 +146,9 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                 <span className="text-sm text-muted-foreground">
                   {member.profiles?.email}
                 </span>
+                <span className="text-sm text-muted-foreground">
+                  {member.profiles?.id}
+                </span>
               </div>
             </div>
 
@@ -173,7 +177,12 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-red-600"
-                    onClick={() => removeMutation.mutate(member.id)}
+                    onClick={() =>
+                      removeMutation.mutate({
+                        memberId: member.profiles?.id,
+                        teamId: teamId,
+                      })
+                    }
                   >
                     추방하기
                   </DropdownMenuItem>

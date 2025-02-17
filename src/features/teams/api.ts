@@ -85,11 +85,11 @@ export const getTeamMembers = async (
     .select(
       `
     *,
-    profiles:profiles!user_id(
+    profiles:profiles!team_members_user_id_fkey(
       id,
       email,
-      raw_user_meta_data->>name,
-      raw_user_meta_data->>avatar_url
+      name,
+      avatar_url
     )
     `
     )
@@ -113,10 +113,13 @@ export async function updateTeamMember(
   memberId: string,
   data: { role?: TeamMemberRole; status?: TeamMemberStatus }
 ) {
-  const { error } = await supabase
+  const { data: update, error } = await supabase
     .from("team_members")
     .update(data)
     .eq("id", memberId);
+
+  console.log("updateTeamMember update", update);
+  console.log("updateTeamMember error", error);
 
   if (error) throw error;
 }
@@ -171,12 +174,28 @@ export async function inviteTeamMember(
 
 export async function removeTeamMember(
   supabase: SupabaseClient,
-  memberId: string
+  memberId: string,
+  teamId: string
 ) {
-  const { error } = await supabase
+  console.log("memberId", memberId);
+  console.log("teamId", teamId);
+  const { data: invitationData, error: invitationError } = await supabase
+    .from("team_invitations")
+    .delete()
+    .eq("invitee_id", memberId)
+    .eq("team_id", teamId);
+
+  console.log("removeTeamMember invitationData", invitationData);
+  console.log("removeTeamMember invitationError", invitationError);
+
+  if (invitationError) throw invitationError;
+  const { data: memberData, error } = await supabase
     .from("team_members")
     .delete()
     .eq("id", memberId);
+
+  console.log("memberData", memberData);
+  console.log("removeTeamMember error", error);
 
   if (error) throw error;
 }
@@ -190,12 +209,15 @@ export async function getMyInvitations(supabase: SupabaseClient) {
       team:team_id (name),
       inviter:inviter_id (
         email,
-        raw_user_meta_data->name as name
+        name
       )
     `
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
+
+  console.log("getMyInvitations data", data);
+  console.log("getMyInvitations error", error);
 
   if (error) throw error;
   return data as unknown as TeamInvitation[];
@@ -212,27 +234,39 @@ export async function respondToInvitation(
     .eq("id", invitationId)
     .single();
 
+  console.log("respondToInvitation invitation", invitation);
+  console.log("respondToInvitation getError", getError);
+
   if (getError) throw getError;
 
   // 트랜잭션으로 처리
   if (accept) {
     // 초대를 수락하면 team_members에 추가
-    const { error: memberError } = await supabase.from("team_members").insert({
-      team_id: invitation.team_id,
-      user_id: invitation.invitee_id,
-      status: "active",
-    });
+    const { data: member, error: memberError } = await supabase
+      .from("team_members")
+      .insert({
+        team_id: invitation.team_id,
+        user_id: invitation.invitee_id,
+        status: "active",
+        role: "member",
+      });
+
+    console.log("respondToInvitation member", member);
+    console.log("respondToInvitation memberError", memberError);
 
     if (memberError) throw memberError;
   }
 
   // 초대 상태 업데이트
-  const { error: updateError } = await supabase
+  const { data: update, error: updateError } = await supabase
     .from("team_invitations")
     .update({
       status: accept ? "accepted" : "rejected",
     })
     .eq("id", invitationId);
+
+  console.log("respondToInvitation update", update);
+  console.log("respondToInvitation updateError", updateError);
 
   if (updateError) throw updateError;
 }
