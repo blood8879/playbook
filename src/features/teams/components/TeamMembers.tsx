@@ -63,8 +63,8 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: ({ memberId, teamId }: { memberId: string; teamId: string }) =>
-      removeTeamMember(supabase, memberId, teamId),
+    mutationFn: ({ userId, teamId }: { userId: string; teamId: string }) =>
+      removeTeamMember(supabase, userId, teamId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
     },
@@ -179,7 +179,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                     className="text-red-600"
                     onClick={() =>
                       removeMutation.mutate({
-                        memberId: member.profiles?.id,
+                        userId: member.profiles?.id,
                         teamId: teamId,
                       })
                     }

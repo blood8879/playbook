@@ -174,15 +174,15 @@ export async function inviteTeamMember(
 
 export async function removeTeamMember(
   supabase: SupabaseClient,
-  memberId: string,
+  userId: string,
   teamId: string
 ) {
-  console.log("memberId", memberId);
+  console.log("userId", userId);
   console.log("teamId", teamId);
   const { data: invitationData, error: invitationError } = await supabase
     .from("team_invitations")
     .delete()
-    .eq("invitee_id", memberId)
+    .eq("invitee_id", userId)
     .eq("team_id", teamId);
 
   console.log("removeTeamMember invitationData", invitationData);
@@ -192,7 +192,8 @@ export async function removeTeamMember(
   const { data: memberData, error } = await supabase
     .from("team_members")
     .delete()
-    .eq("id", memberId);
+    .eq("user_id", userId)
+    .eq("team_id", teamId);
 
   console.log("memberData", memberData);
   console.log("removeTeamMember error", error);
