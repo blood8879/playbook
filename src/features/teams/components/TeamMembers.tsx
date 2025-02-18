@@ -8,6 +8,7 @@ import {
   updateTeamMember,
   inviteTeamMember,
   removeTeamMember,
+  swapTeamNumbers,
 } from "../api";
 import { TeamMember, TeamMemberRole } from "../types";
 import { Button } from "@/components/ui/button";
@@ -37,11 +38,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TeamMembersProps {
   teamId: string;
   isLeader: boolean;
 }
+
+// 포지션 상수 정의
+const POSITIONS = [
+  { value: "GK", label: "GK", color: "bg-yellow-500" },
+  { value: "DL", label: "DL", color: "bg-blue-500" },
+  { value: "DC", label: "DC", color: "bg-green-500" },
+  { value: "DR", label: "DR", color: "bg-red-500" },
+  { value: "DMC", label: "DMC", color: "bg-yellow-500" },
+  { value: "ML", label: "ML", color: "bg-yellow-500" },
+  { value: "MC", label: "MC", color: "bg-blue-500" },
+  { value: "MR", label: "MR", color: "bg-green-500" },
+  { value: "AML", label: "AML", color: "bg-red-500" },
+  { value: "AMC", label: "AMC", color: "bg-yellow-500" },
+  { value: "AMR", label: "AMR", color: "bg-blue-500" },
+  { value: "ST", label: "ST", color: "bg-green-500" },
+] as const;
 
 export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   const { supabase } = useSupabase();
@@ -56,6 +82,11 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
   const [memberToRemove, setMemberToRemove] = useState<{
     id: string;
     name: string;
+  } | null>(null);
+  const [editMember, setEditMember] = useState<{
+    id: string;
+    positions: string[];
+    number: string;
   } | null>(null);
 
   const updateMutation = useMutation({
@@ -84,6 +115,29 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     },
   });
 
+  const updateMemberDetailsMutation = useMutation({
+    mutationFn: ({ memberId, data }: { memberId: string; data: any }) =>
+      updateTeamMember(supabase, memberId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
+      setEditMember(null);
+    },
+  });
+
+  // 포지션 업데이트를 위한 별도의 mutation 추가
+  const updatePositionsMutation = useMutation({
+    mutationFn: ({
+      memberId,
+      positions,
+    }: {
+      memberId: string;
+      positions: string[];
+    }) => updateTeamMember(supabase, memberId, { positions }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
+    },
+  });
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail) return;
@@ -92,7 +146,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
 
   const getRoleIcon = (role: TeamMemberRole) => {
     switch (role) {
-      case "leader":
+      case "owner":
         return <Shield className="h-4 w-4 text-yellow-500" />;
       case "manager":
         return <Shield className="h-4 w-4 text-blue-500" />;
@@ -115,7 +169,65 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     }
   };
 
+  const getPositionBadges = (positions: string[]) => {
+    if (!positions || positions.length === 0) return null;
+    return (
+      <div className="flex gap-1">
+        {positions.map((position) => {
+          const pos = POSITIONS.find((p) => p.value === position);
+          if (!pos) return null;
+          return (
+            <Badge
+              key={position}
+              variant="secondary"
+              className={`${pos.color} text-white`}
+            >
+              {pos.label}
+            </Badge>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // 현재 사용 중인 등번호 목록 생성
+  const usedNumbers = members?.reduce((acc, member) => {
+    if (member.number) {
+      acc[member.number] = member.profiles?.name || "";
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+  // 등번호 교체 처리를 위한 함수
+  const handleNumberChange = async (
+    memberId: string,
+    newNumber: string,
+    oldNumber: string | undefined
+  ) => {
+    const memberWithNewNumber = members?.find(
+      (m) => m.number === parseInt(newNumber)
+    );
+
+    const updates = [{ memberId, number: parseInt(newNumber) }];
+
+    if (memberWithNewNumber) {
+      updates.push({
+        memberId: memberWithNewNumber.id,
+        number: oldNumber ? parseInt(oldNumber) : null,
+      });
+    }
+
+    try {
+      await swapTeamNumbers(supabase, teamId, updates);
+      queryClient.invalidateQueries({ queryKey: ["teamMembers", teamId] });
+    } catch (error) {
+      console.error("Failed to swap numbers:", error);
+    }
+  };
+
   if (isLoading) return <div>로딩 중...</div>;
+
+  console.log("teamMembers", members);
 
   return (
     <div className="space-y-4">
@@ -170,6 +282,12 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                 <div className="flex items-center space-x-2">
                   <span className="font-medium">{member.profiles?.name}</span>
                   {getRoleIcon(member.role)}
+                  {member.positions && getPositionBadges(member.positions)}
+                  {member.number && (
+                    <span className="text-sm text-muted-foreground">
+                      #{member.number}
+                    </span>
+                  )}
                 </div>
                 <span className="text-sm text-muted-foreground">
                   {member.profiles?.email}
@@ -187,12 +305,26 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     onClick={() =>
-                      updateMutation.mutate({
-                        memberId: member.id,
-                        data: {
-                          role:
-                            member.role === "manager" ? "member" : "manager",
-                        },
+                      setEditMember({
+                        id: member.id,
+                        positions: member.positions || [],
+                        number: member.number || "",
+                      })
+                    }
+                  >
+                    포지션/등번호 수정
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      updateTeamMember(supabase, member.id, {
+                        role:
+                          member.role === "manager"
+                            ? "member"
+                            : ("manager" as TeamMemberRole),
+                      }).then(() => {
+                        queryClient.invalidateQueries({
+                          queryKey: ["teamMembers", teamId],
+                        });
                       })
                     }
                   >
@@ -217,6 +349,112 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
           </div>
         ))}
       </div>
+
+      {/* 포지션/등번호 수정 다이얼로그 */}
+      <Dialog open={!!editMember} onOpenChange={() => setEditMember(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>포지션/등번호 수정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">포지션</label>
+              <div className="grid grid-cols-2 gap-2">
+                {POSITIONS.map((pos) => (
+                  <div key={pos.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={pos.value}
+                      checked={editMember?.positions?.includes(pos.value)}
+                      onCheckedChange={(checked) => {
+                        setEditMember((prev) => {
+                          if (!prev) return null;
+                          const newPositions = checked
+                            ? [...prev.positions, pos.value]
+                            : prev.positions.filter((p) => p !== pos.value);
+
+                          // 포지션이 변경될 때마다 즉시 서버에 업데이트
+                          updatePositionsMutation.mutate({
+                            memberId: prev.id,
+                            positions: newPositions,
+                          });
+
+                          return {
+                            ...prev,
+                            positions: newPositions,
+                          };
+                        });
+                      }}
+                    />
+                    <label
+                      htmlFor={pos.value}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {pos.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">등번호</label>
+              <Select
+                value={editMember?.number || ""}
+                onValueChange={(value) => {
+                  if (editMember) {
+                    handleNumberChange(editMember.id, value, editMember.number);
+                    setEditMember((prev) =>
+                      prev ? { ...prev, number: value } : null
+                    );
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="등번호 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 99 }, (_, i) => i + 1).map((num) => {
+                    const numStr = String(num);
+                    const currentUser = usedNumbers?.[numStr];
+                    return (
+                      <SelectItem
+                        key={num}
+                        value={numStr}
+                        className={currentUser ? "text-muted-foreground" : ""}
+                      >
+                        {num}
+                        {currentUser && ` - ${currentUser}`}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setEditMember(null)}>
+                취소
+              </Button>
+              <Button
+                onClick={() => {
+                  if (editMember) {
+                    // 등번호만 업데이트 (포지션은 이미 체크박스에서 업데이트됨)
+                    if (editMember.number) {
+                      updateMemberDetailsMutation.mutate({
+                        memberId: editMember.id,
+                        data: {
+                          number: editMember.number,
+                        },
+                      });
+                    }
+                    setEditMember(null);
+                  }
+                }}
+              >
+                저장
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={memberToRemove !== null}

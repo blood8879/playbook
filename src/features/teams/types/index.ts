@@ -23,7 +23,7 @@ export interface Team {
   leader_id: string;
 }
 
-export type TeamMemberRole = "leader" | "manager" | "member";
+export type TeamMemberRole = "owner" | "manager" | "member";
 export type TeamMemberStatus = "pending" | "active" | "inactive";
 
 export interface TeamMember {

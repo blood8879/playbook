@@ -105,18 +105,32 @@ export const getTeamMembers = async (
   return data;
 };
 
-export async function updateTeamMember(
+interface TeamMemberUpdateData {
+  role?: TeamMemberRole;
+  status?: TeamMemberStatus;
+  positions?: string[];
+  number?: string;
+}
+
+export const updateTeamMember = async (
   supabase: SupabaseClient,
   memberId: string,
-  data: { role?: TeamMemberRole; status?: TeamMemberStatus }
-) {
-  const { data: update, error } = await supabase
+  data: TeamMemberUpdateData
+) => {
+  const { data: updatedMember, error } = await supabase
     .from("team_members")
     .update(data)
-    .eq("id", memberId);
+    .eq("id", memberId)
+    .select()
+    .single();
+
+  console.log("data", data);
+  console.log("updatedMember", updatedMember);
+  console.log("error", error);
 
   if (error) throw error;
-}
+  return updatedMember;
+};
 
 export async function inviteTeamMember(
   supabase: SupabaseClient,
@@ -371,4 +385,18 @@ export const getTeamNumbers = async (
 
   if (error) throw error;
   return data.map((member) => member.number);
+};
+
+export const swapTeamNumbers = async (
+  supabase: SupabaseClient,
+  teamId: string,
+  updates: { memberId: string; number: number | null }[]
+) => {
+  const { data, error } = await supabase.rpc("swap_team_numbers", {
+    p_team_id: teamId,
+    p_updates: updates,
+  });
+
+  if (error) throw error;
+  return data;
 };
