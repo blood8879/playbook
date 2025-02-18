@@ -2,23 +2,23 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { TeamFormData, Team, TeamInvitation } from "./types";
 import { TeamMember, TeamMemberRole, TeamMemberStatus } from "./types/index";
 
-export async function searchTeams(
-  supabase: SupabaseClient,
-  searchQuery: string
-) {
-  const query = supabase
-    .from("teams")
-    .select("*")
-    .order("created_at", { ascending: false });
+// export async function searchTeams(
+//   supabase: SupabaseClient,
+//   searchQuery: string
+// ) {
+//   const query = supabase
+//     .from("teams")
+//     .select("*")
+//     .order("created_at", { ascending: false });
 
-  if (searchQuery) {
-    query.ilike("name", `%${searchQuery}%`);
-  }
+//   if (searchQuery) {
+//     query.ilike("name", `%${searchQuery}%`);
+//   }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data as Team[];
-}
+//   const { data, error } = await query;
+//   if (error) throw error;
+//   return data as Team[];
+// }
 
 export async function createTeam(
   supabase: SupabaseClient,
@@ -97,9 +97,6 @@ export const getTeamMembers = async (
     .order("role", { ascending: false })
     .order("created_at", { ascending: true });
 
-  console.log("get Team Members data", data);
-  console.log("get Team Members error", error);
-
   if (error) {
     console.error("error", error);
     return null;
@@ -118,9 +115,6 @@ export async function updateTeamMember(
     .update(data)
     .eq("id", memberId);
 
-  console.log("updateTeamMember update", update);
-  console.log("updateTeamMember error", error);
-
   if (error) throw error;
 }
 
@@ -137,9 +131,6 @@ export async function inviteTeamMember(
     .eq("email", email)
     .single();
 
-  console.log("invite user", user);
-  console.log("invite userError", userError);
-
   if (userError) throw userError;
   if (!user) throw new Error("사용자를 찾을 수 없습니다");
 
@@ -150,9 +141,6 @@ export async function inviteTeamMember(
     .eq("team_id", teamId)
     .eq("user_id", user.id)
     .single();
-
-  console.log("invite existingMember", existingMember);
-  console.log("invite memberError", memberError);
 
   if (memberError && memberError.code !== "PGRST116") throw memberError;
   if (existingMember) throw new Error("이미 팀 멤버입니다");
@@ -166,9 +154,6 @@ export async function inviteTeamMember(
       invitee_id: user.id,
     });
 
-  console.log("invite invite", invite);
-  console.log("invite inviteError", inviteError);
-
   if (inviteError) throw inviteError;
 }
 
@@ -177,16 +162,17 @@ export async function removeTeamMember(
   userId: string,
   teamId: string
 ) {
-  console.log("userId", userId);
-  console.log("teamId", teamId);
   const { data: invitationData, error: invitationError } = await supabase
     .from("team_invitations")
     .delete()
     .eq("invitee_id", userId)
     .eq("team_id", teamId);
 
-  console.log("removeTeamMember invitationData", invitationData);
-  console.log("removeTeamMember invitationError", invitationError);
+  const { data: joinRequestData, error: joinRequestError } = await supabase
+    .from("team_join_requests")
+    .delete()
+    .eq("user_id", userId)
+    .eq("team_id", teamId);
 
   if (invitationError) throw invitationError;
   const { data: memberData, error } = await supabase
@@ -195,13 +181,13 @@ export async function removeTeamMember(
     .eq("user_id", userId)
     .eq("team_id", teamId);
 
-  console.log("memberData", memberData);
-  console.log("removeTeamMember error", error);
-
   if (error) throw error;
 }
 
-export async function getMyInvitations(supabase: SupabaseClient) {
+export async function getMyInvitations(
+  supabase: SupabaseClient,
+  userId: string
+) {
   const { data, error } = await supabase
     .from("team_invitations")
     .select(
@@ -215,10 +201,8 @@ export async function getMyInvitations(supabase: SupabaseClient) {
     `
     )
     .eq("status", "pending")
+    .eq("invitee_id", userId)
     .order("created_at", { ascending: false });
-
-  console.log("getMyInvitations data", data);
-  console.log("getMyInvitations error", error);
 
   if (error) throw error;
   return data as unknown as TeamInvitation[];
@@ -235,9 +219,6 @@ export async function respondToInvitation(
     .eq("id", invitationId)
     .single();
 
-  console.log("respondToInvitation invitation", invitation);
-  console.log("respondToInvitation getError", getError);
-
   if (getError) throw getError;
 
   // 트랜잭션으로 처리
@@ -252,9 +233,6 @@ export async function respondToInvitation(
         role: "member",
       });
 
-    console.log("respondToInvitation member", member);
-    console.log("respondToInvitation memberError", memberError);
-
     if (memberError) throw memberError;
   }
 
@@ -266,8 +244,131 @@ export async function respondToInvitation(
     })
     .eq("id", invitationId);
 
-  console.log("respondToInvitation update", update);
-  console.log("respondToInvitation updateError", updateError);
-
   if (updateError) throw updateError;
 }
+
+export const searchTeams = async (
+  supabase: SupabaseClient,
+  searchTerm: string
+) => {
+  const { data, error } = await supabase
+    .from("teams")
+    .select("*")
+    .ilike("name", `%${searchTerm}%`);
+
+  if (error) throw error;
+  return data;
+};
+
+export const createJoinRequest = async (
+  supabase: any,
+  {
+    teamId,
+    userId,
+    positions,
+    number,
+    message,
+  }: {
+    teamId: string;
+    userId: string;
+    positions: string[];
+    number: number;
+    message: string;
+  }
+) => {
+  const { data, error } = await supabase.from("team_join_requests").insert({
+    team_id: teamId,
+    user_id: userId,
+    preferred_positions: positions,
+    preferred_number: number,
+    message,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const getTeamJoinRequests = async (
+  supabase: SupabaseClient,
+  teamId: string
+) => {
+  const { data, error } = await supabase
+    .from("team_join_requests")
+    .select(
+      `
+      *,
+      profiles:user_id (
+        id,
+        email,
+        name,
+        avatar_url
+      )
+    `
+    )
+    .eq("team_id", teamId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const respondToJoinRequest = async (
+  supabase: SupabaseClient,
+  requestId: string,
+  {
+    accepted,
+    positions,
+    number,
+  }: {
+    accepted: boolean;
+    positions?: string[];
+    number?: number;
+  }
+) => {
+  const { data: request, error: getError } = await supabase
+    .from("team_join_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  if (getError) throw getError;
+
+  if (accepted) {
+    // 팀 멤버로 추가
+    const { error: memberError } = await supabase.from("team_members").insert({
+      team_id: request.team_id,
+      user_id: request.user_id,
+      status: "active",
+      role: "member",
+      positions: positions || request.preferred_positions,
+      number: number || request.preferred_number,
+    });
+
+    if (memberError) throw memberError;
+  }
+
+  // 가입 신청 상태 업데이트
+  const { error: updateError } = await supabase
+    .from("team_join_requests")
+    .update({
+      status: accepted ? "accepted" : "rejected",
+    })
+    .eq("id", requestId);
+
+  if (updateError) throw updateError;
+};
+
+export const getTeamNumbers = async (
+  supabase: SupabaseClient,
+  teamId: string
+) => {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("number")
+    .eq("team_id", teamId)
+    .not("number", "is", null);
+
+  if (error) throw error;
+  return data.map((member) => member.number);
+};

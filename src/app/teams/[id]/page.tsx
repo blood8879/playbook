@@ -8,10 +8,11 @@ import { TeamDetail } from "@/features/teams/components/TeamDetail";
 import { TeamDetailSkeleton } from "@/features/teams/components/TeamDetailSkeleton";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { TeamJoinRequests } from "@/features/teams/components/TeamJoinRequests";
 
 export default function TeamDetailPage() {
   const params = useParams();
-  const { supabase } = useSupabase();
+  const { supabase, user } = useSupabase();
   const teamId = params.id as string;
   const router = useRouter();
 
@@ -45,6 +46,11 @@ export default function TeamDetailPage() {
   return (
     <div className="container py-8">
       {isLoading ? <TeamDetailSkeleton /> : <TeamDetail team={team!} />}
+      {team?.leader_id === user?.id && (
+        <div className="mt-8">
+          <TeamJoinRequests teamId={teamId} />
+        </div>
+      )}
     </div>
   );
 }

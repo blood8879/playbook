@@ -27,6 +27,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MoreVertical, UserPlus, Shield, User } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface TeamMembersProps {
   teamId: string;
@@ -43,6 +53,10 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     queryKey: ["teamMembers", teamId],
     queryFn: () => getTeamMembers(supabase, teamId),
   });
+  const [memberToRemove, setMemberToRemove] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: ({ memberId, data }: { memberId: string; data: any }) =>
@@ -84,6 +98,20 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
         return <Shield className="h-4 w-4 text-blue-500" />;
       default:
         return <User className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const handleRemoveClick = (memberId: string, memberName: string) => {
+    setMemberToRemove({ id: memberId, name: memberName });
+  };
+
+  const handleConfirmRemove = () => {
+    if (memberToRemove) {
+      removeMutation.mutate({
+        userId: memberToRemove.id,
+        teamId: teamId,
+      });
+      setMemberToRemove(null);
     }
   };
 
@@ -146,9 +174,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                 <span className="text-sm text-muted-foreground">
                   {member.profiles?.email}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {member.profiles?.id}
-                </span>
               </div>
             </div>
 
@@ -178,10 +203,10 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                   <DropdownMenuItem
                     className="text-red-600"
                     onClick={() =>
-                      removeMutation.mutate({
-                        userId: member.profiles?.id,
-                        teamId: teamId,
-                      })
+                      handleRemoveClick(
+                        member.profiles?.id,
+                        member.profiles?.name
+                      )
                     }
                   >
                     추방하기
@@ -192,6 +217,30 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
           </div>
         ))}
       </div>
+
+      <AlertDialog
+        open={memberToRemove !== null}
+        onOpenChange={(open) => !open && setMemberToRemove(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>팀원 추방</AlertDialogTitle>
+            <AlertDialogDescription>
+              정말 {memberToRemove?.name}님을 팀에서 추방하시겠습니까?
+              <br />이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmRemove}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              추방하기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

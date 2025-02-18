@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 export default function InvitationsPage() {
-  const { supabase } = useSupabase();
+  const { supabase, user } = useSupabase();
   const { toast } = useToast();
 
   const {
@@ -18,7 +18,7 @@ export default function InvitationsPage() {
     refetch,
   } = useQuery({
     queryKey: ["invitations"],
-    queryFn: () => getMyInvitations(supabase),
+    queryFn: () => getMyInvitations(supabase, user?.id),
   });
 
   const handleResponse = async (invitationId: string, accept: boolean) => {
