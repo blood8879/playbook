@@ -2,23 +2,10 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { TeamFormData, Team, TeamInvitation, TeamMatch } from "./types";
 import { TeamMemberRole, TeamMemberStatus } from "./types/index";
 
-// export async function searchTeams(
-//   supabase: SupabaseClient,
-//   searchQuery: string
-// ) {
-//   const query = supabase
-//     .from("teams")
-//     .select("*")
-//     .order("created_at", { ascending: false });
-
-//   if (searchQuery) {
-//     query.ilike("name", `%${searchQuery}%`);
-//   }
-
-//   const { data, error } = await query;
-//   if (error) throw error;
-//   return data as Team[];
-// }
+/**
+ * @ai_context
+ * Here we add new functions for head-to-head stats and match attendance management.
+ */
 
 export async function createTeam(
   supabase: SupabaseClient,
@@ -46,7 +33,6 @@ export async function createTeam(
     emblem_url = urlData.publicUrl;
   }
 
-  // Supabase 트랜잭션 사용
   const { data: team, error: createError } = await supabase.rpc(
     "create_team_with_member",
     {
@@ -124,10 +110,6 @@ export const updateTeamMember = async (
     .select()
     .single();
 
-  console.log("data", data);
-  console.log("updatedMember", updatedMember);
-  console.log("error", error);
-
   if (error) throw error;
   return updatedMember;
 };
@@ -138,7 +120,6 @@ export async function inviteTeamMember(
   email: string,
   inviterId: string
 ) {
-  // 1. 해당 이메일의 사용자를 찾습니다.
   const { data: user, error: userError } = await supabase
     .from("profiles")
     .select("id")
@@ -148,7 +129,6 @@ export async function inviteTeamMember(
   if (userError) throw userError;
   if (!user) throw new Error("사용자를 찾을 수 없습니다");
 
-  // 2. 이미 팀 멤버인지 확인합니다.
   const { data: existingMember, error: memberError } = await supabase
     .from("team_members")
     .select("id")
@@ -159,7 +139,6 @@ export async function inviteTeamMember(
   if (memberError && memberError.code !== "PGRST116") throw memberError;
   if (existingMember) throw new Error("이미 팀 멤버입니다");
 
-  // 3. 초대를 생성합니다.
   const { data: invite, error: inviteError } = await supabase
     .from("team_invitations")
     .insert({
@@ -235,9 +214,7 @@ export async function respondToInvitation(
 
   if (getError) throw getError;
 
-  // 트랜잭션으로 처리
   if (accept) {
-    // 초대를 수락하면 team_members에 추가
     const { data: member, error: memberError } = await supabase
       .from("team_members")
       .insert({
@@ -250,7 +227,6 @@ export async function respondToInvitation(
     if (memberError) throw memberError;
   }
 
-  // 초대 상태 업데이트
   const { data: update, error: updateError } = await supabase
     .from("team_invitations")
     .update({
@@ -313,8 +289,8 @@ export const getTeamJoinRequests = async (
       *,
       profiles:user_id (
         id,
-        email,
         name,
+        email,
         avatar_url
       )
     `
@@ -349,7 +325,6 @@ export const respondToJoinRequest = async (
   if (getError) throw getError;
 
   if (accepted) {
-    // 팀 멤버로 추가
     const { error: memberError } = await supabase.from("team_members").insert({
       team_id: request.team_id,
       user_id: request.user_id,
@@ -362,7 +337,6 @@ export const respondToJoinRequest = async (
     if (memberError) throw memberError;
   }
 
-  // 가입 신청 상태 업데이트
   const { error: updateError } = await supabase
     .from("team_join_requests")
     .update({
@@ -430,4 +404,180 @@ export async function getMatchById(
   }
 
   return data as TeamMatch;
+}
+
+/**
+ * @ai_context
+ * We add new methods for advanced match stats
+ */
+export async function getHeadToHeadStats(
+  supabase: SupabaseClient,
+  teamA: string,
+  teamB: string
+) {
+  // totalMatches, teamAWins, draws, teamBWins
+  // We'll look for matches where team_id = teamA and opponent_team_id=teamB or vice versa
+  // Also consider guest teams if needed
+  // For simplicity, let's do if the opponent_team_id = the other team
+  const { data: matches, error } = await supabase
+    .from("matches")
+    .select("home_score, away_score, is_finished, team_id, opponent_team_id")
+    .or(`(team_id.eq.${teamA},opponent_team_id.eq.${teamB})`)
+    .or(`(team_id.eq.${teamB},opponent_team_id.eq.${teamA})`)
+    .eq("is_finished", true);
+
+  if (error) throw error;
+
+  let total = 0;
+  let teamAWins = 0;
+  let teamBWins = 0;
+  let draws = 0;
+
+  matches?.forEach((m) => {
+    total += 1;
+    const homeTeamIsA = m.team_id === teamA;
+    const homeScore = m.home_score ?? 0;
+    const awayScore = m.away_score ?? 0;
+    let aScore, bScore;
+    if (homeTeamIsA) {
+      aScore = homeScore;
+      bScore = awayScore;
+    } else {
+      aScore = awayScore;
+      bScore = homeScore;
+    }
+    if (aScore > bScore) {
+      if (homeTeamIsA) {
+        teamAWins += 1;
+      } else {
+        teamBWins += 1;
+      }
+    } else if (aScore < bScore) {
+      if (homeTeamIsA) {
+        teamBWins += 1;
+      } else {
+        teamAWins += 1;
+      }
+    } else {
+      draws += 1;
+    }
+  });
+
+  return {
+    totalMatches: total,
+    teamAWins,
+    teamBWins,
+    draws,
+  };
+}
+
+/**
+ * get last N matches between two teams
+ */
+export async function getLastMatchesBetweenTeams(
+  supabase: SupabaseClient,
+  teamA: string,
+  teamB: string,
+  limit = 5
+) {
+  const { data, error } = await supabase
+    .from("matches")
+    .select(
+      `
+      id,
+      match_date,
+      home_score,
+      away_score,
+      is_finished,
+      team_id,
+      opponent_team_id,
+      competition_type,
+      game_type
+    `
+    )
+    .or(`(team_id.eq.${teamA},opponent_team_id.eq.${teamB})`)
+    .or(`(team_id.eq.${teamB},opponent_team_id.eq.${teamA})`)
+    .eq("is_finished", true)
+    .order("match_date", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * get last N matches of a team
+ */
+export async function getLastMatchesOfTeam(
+  supabase: SupabaseClient,
+  teamId: string,
+  limit = 5
+) {
+  const { data, error } = await supabase
+    .from("matches")
+    .select(`
+      id,
+      match_date,
+      home_score,
+      away_score,
+      is_finished,
+      team_id,
+      opponent_team_id,
+      competition_type,
+      game_type
+    `)
+    .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
+    .eq("is_finished", true)
+    .order("match_date", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * match attendance
+ */
+export async function getMatchAttendance(
+  supabase: SupabaseClient,
+  matchId: string,
+  userId: string
+) {
+  const { data, error } = await supabase
+    .from("match_attendance")
+    .select("status")
+    .eq("match_id", matchId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data.status as "attending" | "absent" | "maybe";
+}
+
+export async function setMatchAttendance(
+  supabase: SupabaseClient,
+  matchId: string,
+  userId: string,
+  status: "attending" | "absent" | "maybe"
+) {
+  // use onConflict for proper upsert
+  const { error } = await supabase
+    .from("match_attendance")
+    .upsert(
+      {
+        match_id: matchId,
+        user_id: userId,
+        status,
+      },
+      { onConflict: "match_id,user_id" }
+    );
+
+  if (error) throw error;
 }

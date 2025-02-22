@@ -14,6 +14,10 @@ export default function TeamsPage() {
   const { supabase, user } = useSupabase();
   const [searchQuery, setSearchQuery] = useState("");
 
+  // [OLD: v4 방식 - 사용 불가]
+  // const { data: teams, isLoading, refetch } = useQuery(["teams", searchQuery], () => searchTeams(supabase, searchQuery))
+
+  // [NEW: v5 방식 - 오브젝트 한 개로 전달]
   const {
     data: teams,
     isLoading,
