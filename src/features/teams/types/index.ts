@@ -85,3 +85,31 @@ export interface Stadium {
   address: string;
   description: string | null;
 }
+
+/**
+ * @ai_context
+ * Added below interface for match details
+ */
+export interface TeamMatch {
+  id: string;
+  team_id: string;
+  match_date: string;
+  registration_deadline: string;
+  opponent_team_id: string | null;
+  opponent_guest_team_id: string | null;
+  is_tbd: boolean;
+  venue: string;
+  description: string | null;
+  competition_type: "friendly" | "league" | "cup";
+  game_type: "5vs5" | "6vs6" | "11vs11";
+  home_score: number | null;
+  away_score: number | null;
+  is_finished: boolean;
+  // optional joined data
+  opponent_team?: Team;
+  opponent_guest_team?: {
+    id: string;
+    name: string;
+    description: string | null;
+  };
+}

@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { TeamFormData, Team, TeamInvitation } from "./types";
-import { TeamMember, TeamMemberRole, TeamMemberStatus } from "./types/index";
+import { TeamFormData, Team, TeamInvitation, TeamMatch } from "./types";
+import { TeamMemberRole, TeamMemberStatus } from "./types/index";
 
 // export async function searchTeams(
 //   supabase: SupabaseClient,
@@ -275,7 +275,7 @@ export const searchTeams = async (
 };
 
 export const createJoinRequest = async (
-  supabase: any,
+  supabase: SupabaseClient,
   {
     teamId,
     userId,
@@ -400,3 +400,34 @@ export const swapTeamNumbers = async (
   if (error) throw error;
   return data;
 };
+
+/**
+ * @ai_context
+ * New function to get a match by ID for detail page
+ */
+export async function getMatchById(
+  supabase: SupabaseClient,
+  matchId: string
+): Promise<TeamMatch | null> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select(
+      `
+        *,
+        opponent_team:teams!matches_opponent_team_id_fkey(*),
+        opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(*)
+      `
+    )
+    .eq("id", matchId)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data as TeamMatch;
+}

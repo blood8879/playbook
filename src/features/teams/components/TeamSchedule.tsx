@@ -1,46 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useSupabase } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Button } from "@/components/ui/button";
-import { Plus, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TeamMatch } from "../types";
 
 interface TeamScheduleProps {
-  teamId: string;
+  matches: TeamMatch[];
+  isLoading: boolean;
   upcoming?: boolean;
 }
 
-export function TeamSchedule({ teamId, upcoming = false }: TeamScheduleProps) {
-  const { supabase } = useSupabase();
-
-  const { data: matches, isLoading } = useQuery({
-    queryKey: ["teamMatches", teamId, upcoming],
-    queryFn: async () => {
-      const query = supabase
-        .from("matches")
-        .select(
-          `
-          *,
-          opponent_team:teams(*),
-          opponent_guest_team:guest_clubs(*)
-        `
-        )
-        .eq("team_id", teamId)
-        .order("match_date", { ascending: true });
-
-      if (upcoming) {
-        query.gte("match_date", new Date().toISOString());
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-  });
-
+export function TeamSchedule({ matches, isLoading, upcoming = false }: TeamScheduleProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -51,7 +23,13 @@ export function TeamSchedule({ teamId, upcoming = false }: TeamScheduleProps) {
     );
   }
 
-  if (!matches || matches.length === 0) {
+  let filteredMatches = matches;
+  if (upcoming) {
+    const now = new Date();
+    filteredMatches = matches.filter((m) => new Date(m.match_date) >= now);
+  }
+
+  if (filteredMatches.length === 0) {
     return (
       <div className="text-center py-8 space-y-3">
         <Calendar className="w-12 h-12 text-gray-300 mx-auto" />
@@ -64,7 +42,7 @@ export function TeamSchedule({ teamId, upcoming = false }: TeamScheduleProps) {
 
   return (
     <div className="space-y-2">
-      {matches.map((match) => (
+      {filteredMatches.map((match) => (
         <div
           key={match.id}
           className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"

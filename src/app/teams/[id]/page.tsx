@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { getTeamById } from "@/features/teams/api";
+import { getTeamById, getMatchById } from "@/features/teams/api";
 import { useSupabase } from "@/lib/supabase/client";
 import { TeamDetail } from "@/features/teams/components/TeamDetail";
 import { TeamDetailSkeleton } from "@/features/teams/components/TeamDetailSkeleton";
@@ -17,6 +17,8 @@ import { Calendar, MapPin, Users, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
+import { getTeamMembers, getTeamById as fetchTeamById, searchTeams } from "@/features/teams/api";
+import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
 
 interface TeamDetailPageProps {
   params: {
@@ -30,11 +32,17 @@ export default function TeamDetailPage() {
   const teamId = params.id as string;
   const router = useRouter();
 
-  const { data: team, isLoading } = useQuery<Team>({
+  // 팀 정보 조회
+  const {
+    data: team,
+    isLoading: isTeamLoading,
+    isError: isTeamError,
+  } = useQuery<Team>({
     queryKey: ["team", teamId],
-    queryFn: () => getTeamById(supabase, teamId),
+    queryFn: () => fetchTeamById(supabase, teamId),
   });
 
+  // 팀 멤버권한 확인
   const { data: teamMember } = useQuery({
     queryKey: ["teamMember", teamId, user?.id],
     queryFn: async () => {
@@ -48,10 +56,20 @@ export default function TeamDetailPage() {
     },
     enabled: !!user && !!teamId,
   });
-
   const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
 
-  if (!team && !isLoading) {
+  // 모든 경기 일정 한 번에 조회
+  const {
+    data: matches,
+    isLoading: isMatchesLoading,
+    isError: isMatchesError,
+  } = useQuery({
+    queryKey: ["teamMatches", teamId],
+    queryFn: () => getAllMatchesForTeam(supabase, teamId),
+    enabled: !!teamId,
+  });
+
+  if ((!team && !isTeamLoading) || isTeamError) {
     return (
       <div className="container py-8">
         <div className="text-center">
@@ -73,7 +91,7 @@ export default function TeamDetailPage() {
     );
   }
 
-  if (isLoading) {
+  if (isTeamLoading) {
     return <TeamDetailSkeleton />;
   }
 
@@ -119,7 +137,11 @@ export default function TeamDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TeamSchedule teamId={teamId} upcoming={true} />
+            <TeamSchedule
+              matches={matches || []}
+              isLoading={isMatchesLoading}
+              upcoming={true}
+            />
           </CardContent>
         </Card>
 
@@ -133,7 +155,12 @@ export default function TeamDetailPage() {
             </TabsList>
 
             <TabsContent value="schedule">
-              <TeamMatches teamId={teamId} isLeader={isAdmin} />
+              <TeamMatches
+                matches={matches || []}
+                isLoading={isMatchesLoading}
+                teamId={teamId}
+                isLeader={isAdmin}
+              />
             </TabsContent>
 
             <TabsContent value="members">

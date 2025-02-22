@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -16,8 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
+import { StadiumRegistration } from "./StadiumRegistration";
 import {
   Select,
   SelectContent,
@@ -26,30 +25,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { StadiumRegistration } from "./StadiumRegistration";
-import { Stadium } from "../types";
+import { TeamMatch, Stadium } from "../types";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { useRouter } from "next/navigation";
+import { TeamMatchesSkeleton } from "./TeamMatchesSkeleton";
 
 interface TeamMatchesProps {
+  matches: TeamMatch[];
+  isLoading: boolean;
   teamId: string;
   isLeader: boolean;
 }
 
-interface Match {
-  id: string;
-  team_id: string;
-  match_date: string;
-  registration_deadline: string;
-  opponent_team_id: string | null;
-  opponent_guest_team_id: string | null;
-  is_tbd: boolean;
-  venue: string;
-  description: string | null;
-  competition_type: "friendly" | "league" | "cup";
-  game_type: "5vs5" | "6vs6" | "11vs11";
-  home_score: number | null;
-  away_score: number | null;
-  is_finished: boolean;
-}
+/**
+ * @ai_context
+ * This component handles listing and creating matches for a team.
+ */
 
 interface GuestClub {
   id: string;
@@ -73,10 +65,17 @@ interface MatchFormData {
   game_type: "5vs5" | "6vs6" | "11vs11";
 }
 
-export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
+export function TeamMatches({ matches, isLoading, teamId, isLeader }: TeamMatchesProps) {
   const { supabase } = useSupabase();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [isAddingMatch, setIsAddingMatch] = useState(false);
   const [isAddingStadium, setIsAddingStadium] = useState(false);
+  const [guestClubs, setGuestClubs] = useState<GuestClub[]>([]);
+  const [stadiums, setStadiums] = useState<Stadium[]>([]);
+  const [didFetchExtras, setDidFetchExtras] = useState(false);
+
   const [formData, setFormData] = useState<MatchFormData>({
     match_date: "",
     registration_deadline: "",
@@ -86,98 +85,76 @@ export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
     competition_type: "friendly",
     game_type: "11vs11",
   });
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const { data: matches, isLoading } = useQuery<Match[]>({
-    queryKey: ["teamMatches", teamId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select(
-          `
-          *,
-          opponent_team:teams!matches_opponent_team_id_fkey(*),
-          opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(*)
-        `
-        )
-        .eq("team_id", teamId)
-        .order("match_date", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
-  });
+  const handleOpenDialog = async () => {
+    setIsAddingMatch(true);
 
-  const { data: guestClubs } = useQuery<GuestClub[]>({
-    queryKey: ["teamGuestClubs", teamId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("guest_clubs")
-        .select("*")
-        .eq("team_id", teamId)
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+    if (!didFetchExtras) {
+      try {
+        const { data: guestData, error: guestError } = await supabase
+          .from("guest_clubs")
+          .select("*")
+          .eq("team_id", teamId)
+          .order("name");
+        if (!guestError && guestData) {
+          setGuestClubs(guestData);
+        }
 
-  const { data: stadiums } = useQuery<Stadium[]>({
-    queryKey: ["teamStadiums", teamId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stadiums")
-        .select("*")
-        .eq("team_id", teamId)
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+        const { data: stadiumData, error: stadiumError } = await supabase
+          .from("stadiums")
+          .select("*")
+          .eq("team_id", teamId)
+          .order("name");
+        if (!stadiumError && stadiumData) {
+          setStadiums(stadiumData);
+        }
+
+        setDidFetchExtras(true);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
 
   const addMatchMutation = useMutation({
     mutationFn: async (data: MatchFormData) => {
       let opponent_guest_team_id = null;
 
-      // 게스트 팀인 경우 먼저 게스트 팀을 생성
       if (data.opponent_type === "guest" && data.opponent_guest_team) {
-        const { data: guestTeam, error: guestError } = await supabase
-          .from("guest_clubs")
-          .insert({
-            ...data.opponent_guest_team,
-            team_id: teamId,
-          })
-          .select()
-          .single();
+        try {
+          const { data: inserted, error: insertErr } = await supabase
+            .from("guest_clubs")
+            .insert({
+              ...data.opponent_guest_team,
+              team_id: teamId,
+            })
+            .select()
+            .single();
 
-        if (guestError) {
-          // 이미 존재하는 게스트 클럽인 경우 해당 클럽의 ID를 사용
-          if (guestError.code === "23505") {
-            const { data: existingClub, error: existingClubError } =
-              await supabase
+          if (!insertErr) {
+            opponent_guest_team_id = inserted.id;
+          } else {
+            if (insertErr.code === "23505") {
+              const { data: existingClub, error: existingError } = await supabase
                 .from("guest_clubs")
                 .select("id")
                 .eq("team_id", teamId)
                 .eq("name", data.opponent_guest_team.name)
                 .single();
-
-            if (existingClubError) {
-              throw new Error(
-                "게스트 클럽 정보를 확인하는 중 오류가 발생했습니다."
-              );
+              if (!existingError && existingClub) {
+                opponent_guest_team_id = existingClub.id;
+              } else {
+                throw new Error("게스트 클럽 정보를 확인하는 중 오류가 발생했습니다.");
+              }
+            } else {
+              throw new Error("게스트 클럽 등록 중 오류가 발생했습니다.");
             }
-
-            if (existingClub) {
-              opponent_guest_team_id = existingClub.id;
-            }
-          } else {
-            throw new Error("게스트 클럽을 등록하는 중 오류가 발생했습니다.");
           }
-        } else {
-          opponent_guest_team_id = guestTeam.id;
+        } catch (e: any) {
+          throw e;
         }
       }
 
-      // 경기 생성
       const { data: match, error } = await supabase
         .from("matches")
         .insert({
@@ -229,8 +206,7 @@ export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
       console.error("경기 일정 등록 오류:", error);
       toast({
         title: "경기 일정 등록 실패",
-        description:
-          error.message || "경기 일정을 등록하는 중 오류가 발생했습니다.",
+        description: error.message || "경기 일정을 등록하는 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     },
@@ -242,14 +218,14 @@ export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
   };
 
   if (isLoading) {
-    return <div className="text-center py-8">경기 일정을 불러오는 중...</div>;
+    return <TeamMatchesSkeleton />;
   }
 
   return (
     <div className="space-y-4">
       {isLeader && (
         <div className="flex justify-end">
-          <Button onClick={() => setIsAddingMatch(true)}>
+          <Button onClick={handleOpenDialog}>
             <Plus className="w-4 h-4 mr-2" />
             경기 일정 등록
           </Button>
@@ -481,22 +457,23 @@ export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 경기장 등록 다이얼로그 */}
       <StadiumRegistration
         teamId={teamId}
         open={isAddingStadium}
         onOpenChange={setIsAddingStadium}
         onSuccess={(stadium) => {
           setIsAddingStadium(false);
+          setStadiums((prev) => [...prev, stadium]);
           setFormData({ ...formData, venue: stadium.name });
         }}
       />
 
       <div className="space-y-2">
-        {matches?.map((match) => (
+        {matches.map((match) => (
           <div
             key={match.id}
             className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+            onClick={() => router.push(`/matches/${match.id}`)}
           >
             <div className="text-sm text-gray-500">
               {format(new Date(match.match_date), "PPP p", { locale: ko })}
@@ -522,7 +499,7 @@ export function TeamMatches({ teamId, isLeader }: TeamMatchesProps) {
             )}
           </div>
         ))}
-        {matches?.length === 0 && (
+        {matches.length === 0 && (
           <div className="text-center text-gray-500 py-4">
             등록된 경기 일정이 없습니다
           </div>

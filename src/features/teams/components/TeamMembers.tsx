@@ -32,7 +32,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
+  AlertDialogContent as AlertDlgContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -48,13 +48,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { TeamMembersSkeleton } from "./TeamMembersSkeleton";
 
 interface TeamMembersProps {
   teamId: string;
   isLeader: boolean;
 }
 
-// 포지션 상수 정의
+/**
+ * @ai_context
+ * This file is used to display and manage team members.
+ */
+
 const POSITIONS = [
   { value: "GK", label: "GK", color: "bg-yellow-500" },
   { value: "DL", label: "DL", color: "bg-blue-500" },
@@ -126,7 +131,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     },
   });
 
-  // 포지션 업데이트를 위한 별도의 mutation 추가
   const updatePositionsMutation = useMutation({
     mutationFn: ({
       memberId,
@@ -165,7 +169,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     if (memberToRemove) {
       removeMutation.mutate({
         userId: memberToRemove.id,
-        teamId: teamId,
+        teamId,
       });
       setMemberToRemove(null);
     }
@@ -192,7 +196,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     );
   };
 
-  // 현재 사용 중인 등번호 목록 생성
   const usedNumbers = members?.reduce((acc, member) => {
     if (member.number) {
       acc[member.number] = member.profiles?.name || "";
@@ -200,7 +203,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     return acc;
   }, {} as Record<string, string>);
 
-  // 등번호 교체 처리를 위한 함수
   const handleNumberChange = async (
     memberId: string,
     newNumber: string,
@@ -227,9 +229,9 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     }
   };
 
-  if (isLoading) return <div>로딩 중...</div>;
-
-  console.log("teamMembers", members);
+  if (isLoading) {
+    return <TeamMembersSkeleton />;
+  }
 
   return (
     <div className="space-y-4">
@@ -370,7 +372,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
         ))}
       </div>
 
-      {/* 포지션/등번호 수정 다이얼로그 */}
       <Dialog open={!!editMember} onOpenChange={() => setEditMember(null)}>
         <DialogContent>
           <DialogHeader>
@@ -392,7 +393,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                             ? [...prev.positions, pos.value]
                             : prev.positions.filter((p) => p !== pos.value);
 
-                          // 포지션이 변경될 때마다 즉시 서버에 업데이트
                           updatePositionsMutation.mutate({
                             memberId: prev.id,
                             positions: newPositions,
@@ -456,7 +456,6 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
               <Button
                 onClick={() => {
                   if (editMember) {
-                    // 등번호만 업데이트 (포지션은 이미 체크박스에서 업데이트됨)
                     if (editMember.number) {
                       updateMemberDetailsMutation.mutate({
                         memberId: editMember.id,
@@ -480,7 +479,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
         open={memberToRemove !== null}
         onOpenChange={(open) => !open && setMemberToRemove(null)}
       >
-        <AlertDialogContent>
+        <AlertDlgContent>
           <AlertDialogHeader>
             <AlertDialogTitle>팀원 추방</AlertDialogTitle>
             <AlertDialogDescription>
@@ -497,7 +496,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
               추방하기
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AlertDlgContent>
       </AlertDialog>
     </div>
   );

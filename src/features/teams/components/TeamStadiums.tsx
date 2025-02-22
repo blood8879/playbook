@@ -28,12 +28,13 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
+  AlertDialogContent as AlertDlgContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TeamStadiumsSkeleton } from "./TeamStadiumsSkeleton";
 
 interface TeamStadiumsProps {
   teamId: string;
@@ -54,6 +55,11 @@ interface StadiumFormData {
   description: string;
 }
 
+/**
+ * @ai_context
+ * This component manages stadium information, including creation, update, and deletion.
+ */
+
 export function TeamStadiums({ teamId, isLeader }: TeamStadiumsProps) {
   const { supabase } = useSupabase();
   const [isAddingStadium, setIsAddingStadium] = useState(false);
@@ -69,7 +75,10 @@ export function TeamStadiums({ teamId, isLeader }: TeamStadiumsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [stadiumToDelete, setStadiumToDelete] = useState<Stadium | null>(null);
 
-  const { data: stadiums, isLoading } = useQuery<Stadium[]>({
+  const {
+    data: stadiums,
+    isLoading,
+  } = useQuery<Stadium[]>({
     queryKey: ["teamStadiums", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -224,7 +233,7 @@ export function TeamStadiums({ teamId, isLeader }: TeamStadiumsProps) {
   };
 
   if (isLoading) {
-    return <div>로딩 중...</div>;
+    return <TeamStadiumsSkeleton />;
   }
 
   return (
@@ -389,7 +398,7 @@ export function TeamStadiums({ teamId, isLeader }: TeamStadiumsProps) {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
       >
-        <AlertDialogContent>
+        <AlertDlgContent>
           <AlertDialogHeader>
             <AlertDialogTitle>경기장 삭제</AlertDialogTitle>
             <AlertDialogDescription>
@@ -402,7 +411,7 @@ export function TeamStadiums({ teamId, isLeader }: TeamStadiumsProps) {
             </AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>삭제</AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AlertDlgContent>
       </AlertDialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

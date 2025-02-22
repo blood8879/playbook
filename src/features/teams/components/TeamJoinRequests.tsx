@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TeamJoinRequestsSkeleton } from "./TeamJoinRequestsSkeleton";
 
 const POSITIONS = [
   { value: "GK", label: "GK" },
@@ -49,6 +50,11 @@ const POSITIONS = [
   { value: "AMR", label: "AMR" },
   { value: "ST", label: "ST" },
 ];
+
+/**
+ * @ai_context
+ * This file manages displaying and handling team join requests.
+ */
 
 interface TeamJoinRequestsProps {
   teamId: string;
@@ -153,7 +159,7 @@ export function TeamJoinRequests({ teamId }: TeamJoinRequestsProps) {
     setSelectedRequestId(null);
   };
 
-  if (isLoading) return <div>로딩 중...</div>;
+  if (isLoading) return <TeamJoinRequestsSkeleton />;
 
   return (
     <div className="space-y-4">
