@@ -110,34 +110,37 @@ export default function MatchDetailPage() {
 
   // 최근 상대전적
   const { data: recentMeetings } = useQuery({
-    queryKey: [
-      "recentMeetings",
-      matchData?.team_id,
-      matchData?.opponent_team_id,
-    ],
+    queryKey: ["recentMeetings", matchId],
     queryFn: () =>
       getLastMatchesBetweenTeams(
         supabase,
-        matchData?.team_id || "",
-        matchData?.opponent_team_id || "",
-        5
+        matchData.team?.id || "",
+        matchData.opponent_team?.id || "",
+        {
+          isFinished: true,
+        }
       ),
-    enabled: !!matchData?.team_id && !!matchData?.opponent_team_id,
+    enabled: !!matchData?.team?.id && !!matchData?.opponent_team?.id,
   });
 
   // 홈팀 최근 경기
   const { data: homeTeamRecent } = useQuery({
-    queryKey: ["recentMatches", matchData?.team_id],
-    queryFn: () => getLastMatchesOfTeam(supabase, matchData?.team_id || "", 5),
-    enabled: !!matchData?.team_id,
+    queryKey: ["homeTeamRecent", matchId],
+    queryFn: () =>
+      getLastMatchesOfTeam(supabase, matchData.team?.id || "", {
+        isFinished: true,
+      }),
+    enabled: !!matchData?.team?.id,
   });
 
   // 원정팀 최근 경기
   const { data: awayTeamRecent } = useQuery({
-    queryKey: ["recentMatches", matchData?.opponent_team_id],
+    queryKey: ["awayTeamRecent", matchId],
     queryFn: () =>
-      getLastMatchesOfTeam(supabase, matchData?.opponent_team_id || "", 5),
-    enabled: !!matchData?.opponent_team_id,
+      getLastMatchesOfTeam(supabase, matchData.opponent_team?.id || "", {
+        isFinished: true,
+      }),
+    enabled: !!matchData?.opponent_team?.id,
   });
 
   if (isMatchLoading || isAttendanceLoading) {
@@ -499,40 +502,114 @@ export default function MatchDetailPage() {
           참석 현황
         </h2>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-green-50 p-4 rounded-lg text-center">
-            <div className="flex items-center justify-center mb-2">
-              <Check className="w-5 h-5 text-green-600" />
+        {/* 홈팀 참석 현황 */}
+        <div className="mb-6">
+          <h3 className="text-md font-semibold mb-3">
+            {matchData.team?.name} (홈)
+          </h3>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-green-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="text-2xl font-bold text-green-600">
+                {attendanceCount.homeAttending || 0}명
+              </div>
+              <div className="text-sm text-green-600">참석</div>
             </div>
-            <div className="text-2xl font-bold text-green-600">
-              {attendanceCount.attending}명
+
+            <div className="bg-red-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <X className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="text-2xl font-bold text-red-600">
+                {attendanceCount.homeAbsent || 0}명
+              </div>
+              <div className="text-sm text-red-600">불참</div>
             </div>
-            <div className="text-sm text-green-600">참석</div>
+
+            <div className="bg-gray-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <HelpCircle className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="text-2xl font-bold text-gray-600">
+                {attendanceCount.homeMaybe || 0}명
+              </div>
+              <div className="text-sm text-gray-600">미정</div>
+            </div>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg text-center">
-            <div className="flex items-center justify-center mb-2">
-              <X className="w-5 h-5 text-red-600" />
+          {/* 홈팀 참석자 명단 */}
+          <div className="space-y-2">
+            <div className="flex gap-2 flex-wrap">
+              <h4 className="text-sm font-medium mb-2 w-full">참석자 명단</h4>
+              {homeTeamRecent?.map((match) => (
+                <span
+                  key={match.id}
+                  className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
+                >
+                  {match.home_score} - {match.away_score}
+                </span>
+              ))}
             </div>
-            <div className="text-2xl font-bold text-red-600">
-              {attendanceCount.absent}명
+          </div>
+        </div>
+
+        {/* 어웨이팀 참석 현황 */}
+        <div>
+          <h3 className="text-md font-semibold mb-3">
+            {matchData.opponent_team?.name} (어웨이)
+          </h3>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-green-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="text-2xl font-bold text-green-600">
+                {attendanceCount.awayAttending || 0}명
+              </div>
+              <div className="text-sm text-green-600">참석</div>
             </div>
-            <div className="text-sm text-red-600">불참</div>
+
+            <div className="bg-red-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <X className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="text-2xl font-bold text-red-600">
+                {attendanceCount.awayAbsent || 0}명
+              </div>
+              <div className="text-sm text-red-600">불참</div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg text-center">
+              <div className="flex items-center justify-center mb-2">
+                <HelpCircle className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="text-2xl font-bold text-gray-600">
+                {attendanceCount.awayMaybe || 0}명
+              </div>
+              <div className="text-sm text-gray-600">미정</div>
+            </div>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg text-center">
-            <div className="flex items-center justify-center mb-2">
-              <HelpCircle className="w-5 h-5 text-gray-600" />
+          {/* 어웨이팀 참석자 명단 */}
+          <div className="space-y-2">
+            <div className="flex gap-2 flex-wrap">
+              <h4 className="text-sm font-medium mb-2 w-full">참석자 명단</h4>
+              {awayTeamRecent?.map((match) => (
+                <span
+                  key={match.id}
+                  className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
+                >
+                  {match.home_score} - {match.away_score}
+                </span>
+              ))}
             </div>
-            <div className="text-2xl font-bold text-gray-600">
-              {attendanceCount.maybe}명
-            </div>
-            <div className="text-sm text-gray-600">미정</div>
           </div>
         </div>
 
         {/* 참석 버튼 */}
-        <div className="space-y-2">
+        <div className="space-y-2 mt-6">
           <p className="text-sm text-gray-600 mb-3">나의 참석 여부</p>
           <div className="flex items-center gap-2">
             <Button

@@ -433,57 +433,52 @@ export const getHeadToHeadStats = async (
 /**
  * get last N matches between two teams
  */
-export const getLastMatchesBetweenTeams = async (
+export async function getLastMatchesBetweenTeams(
   supabase: SupabaseClient,
   teamAId: string,
   teamBId: string,
-  limit: number = 5
-): Promise<RecentMatch[]> => {
-  const { data, error } = await supabase
+  options?: { isFinished?: boolean }
+) {
+  const query = supabase
     .from("matches")
-    .select(
-      `
-      *,
-      team:teams!matches_team_id_fkey(*),
-      opponent_team:teams!matches_opponent_team_id_fkey(*),
-      opponent_guest_team:guest_clubs(*)
-    `
-    )
-    .or(
-      `and(team_id.eq.${teamAId},opponent_team_id.eq.${teamBId}),and(team_id.eq.${teamBId},opponent_team_id.eq.${teamAId})`
-    )
+    .select("*")
+    .or(`team_id.eq.${teamAId},opponent_team_id.eq.${teamAId}`)
+    .or(`team_id.eq.${teamBId},opponent_team_id.eq.${teamBId}`)
     .order("match_date", { ascending: false })
-    .limit(limit);
+    .limit(5);
 
+  if (options?.isFinished) {
+    query.eq("is_finished", true);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
-};
+  return data;
+}
 
 /**
  * get last N matches of a team
  */
-export const getLastMatchesOfTeam = async (
+export async function getLastMatchesOfTeam(
   supabase: SupabaseClient,
   teamId: string,
-  limit: number = 5
-): Promise<RecentMatch[]> => {
-  const { data, error } = await supabase
+  options?: { isFinished?: boolean }
+) {
+  const query = supabase
     .from("matches")
-    .select(
-      `
-      *,
-      team:teams!matches_team_id_fkey(*),
-      opponent_team:teams!matches_opponent_team_id_fkey(*),
-      opponent_guest_team:guest_clubs(*)
-    `
-    )
+    .select("*")
     .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
     .order("match_date", { ascending: false })
-    .limit(limit);
+    .limit(5);
 
+  if (options?.isFinished) {
+    query.eq("is_finished", true);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
-};
+  return data;
+}
 
 /**
  * match attendance
@@ -530,15 +525,44 @@ export async function setMatchAttendance(
   if (error) throw error;
 }
 
-export const getMatchAttendanceList = async (
+export interface MatchAttendanceCount {
+  attending: number;
+  absent: number;
+  maybe: number;
+  homeAttending: number;
+  homeAbsent: number;
+  homeMaybe: number;
+  awayAttending: number;
+  awayAbsent: number;
+  awayMaybe: number;
+}
+
+export async function getMatchAttendanceList(
   supabase: SupabaseClient,
   matchId: string
-): Promise<MatchAttendance[]> => {
+) {
   const { data, error } = await supabase
     .from("match_attendance")
-    .select("*")
+    .select(
+      `
+      *,
+      user:profiles!match_attendance_user_id_fkey (
+        id,
+        email,
+        name
+      ),
+      team:team_members (
+        team_id
+      )
+    `
+    )
     .eq("match_id", matchId);
 
   if (error) throw error;
-  return data;
-};
+
+  // team_id 정보를 match_attendance 객체에 포함
+  return data.map((attendance) => ({
+    ...attendance,
+    team_id: attendance.team?.[0]?.team_id,
+  }));
+}
