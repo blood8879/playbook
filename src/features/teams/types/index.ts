@@ -78,3 +78,10 @@ export interface TeamJoinRequest {
     avatar_url?: string;
   };
 }
+
+export interface Stadium {
+  id: string;
+  name: string;
+  address: string;
+  description: string | null;
+}

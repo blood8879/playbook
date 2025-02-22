@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, MapPin, Users, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types";
+import { TeamMatches } from "@/features/teams/components/TeamMatches";
 
 interface TeamDetailPageProps {
   params: {
@@ -132,7 +133,7 @@ export default function TeamDetailPage() {
             </TabsList>
 
             <TabsContent value="schedule">
-              <TeamSchedule teamId={teamId} />
+              <TeamMatches teamId={teamId} isLeader={isAdmin} />
             </TabsContent>
 
             <TabsContent value="members">
