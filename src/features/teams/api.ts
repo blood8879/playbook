@@ -387,10 +387,11 @@ export async function getMatchById(
     .from("matches")
     .select(
       `
-        *,
-        opponent_team:teams!matches_opponent_team_id_fkey(*),
-        opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(*)
-      `
+      *,
+      team:teams!matches_team_id_fkey(*),
+      opponent_team:teams!matches_opponent_team_id_fkey(*),
+      opponent_guest_team:guest_clubs(*)
+    `
     )
     .eq("id", matchId)
     .single();
@@ -410,130 +411,79 @@ export async function getMatchById(
  * @ai_context
  * We add new methods for advanced match stats
  */
-export async function getHeadToHeadStats(
+export const getHeadToHeadStats = async (
   supabase: SupabaseClient,
-  teamA: string,
-  teamB: string
-) {
-  // totalMatches, teamAWins, draws, teamBWins
-  // We'll look for matches where team_id = teamA and opponent_team_id=teamB or vice versa
-  // Also consider guest teams if needed
-  // For simplicity, let's do if the opponent_team_id = the other team
-  const { data: matches, error } = await supabase
-    .from("matches")
-    .select("home_score, away_score, is_finished, team_id, opponent_team_id")
-    .or(`(team_id.eq.${teamA},opponent_team_id.eq.${teamB})`)
-    .or(`(team_id.eq.${teamB},opponent_team_id.eq.${teamA})`)
-    .eq("is_finished", true);
-
-  if (error) throw error;
-
-  let total = 0;
-  let teamAWins = 0;
-  let teamBWins = 0;
-  let draws = 0;
-
-  matches?.forEach((m) => {
-    total += 1;
-    const homeTeamIsA = m.team_id === teamA;
-    const homeScore = m.home_score ?? 0;
-    const awayScore = m.away_score ?? 0;
-    let aScore, bScore;
-    if (homeTeamIsA) {
-      aScore = homeScore;
-      bScore = awayScore;
-    } else {
-      aScore = awayScore;
-      bScore = homeScore;
-    }
-    if (aScore > bScore) {
-      if (homeTeamIsA) {
-        teamAWins += 1;
-      } else {
-        teamBWins += 1;
-      }
-    } else if (aScore < bScore) {
-      if (homeTeamIsA) {
-        teamBWins += 1;
-      } else {
-        teamAWins += 1;
-      }
-    } else {
-      draws += 1;
-    }
-  });
-
+  teamAId: string,
+  teamBId: string
+): Promise<HeadToHeadStats> => {
+  // 임시로 더미 데이터 반환
   return {
-    totalMatches: total,
-    teamAWins,
-    teamBWins,
-    draws,
+    teamAWins: 0,
+    teamBWins: 0,
+    draws: 0,
+    teamAHomeWins: 0,
+    teamBHomeWins: 0,
+    homeDraws: 0,
+    teamAAwayWins: 0,
+    teamBAwayWins: 0,
+    awayDraws: 0,
   };
-}
+};
 
 /**
  * get last N matches between two teams
  */
-export async function getLastMatchesBetweenTeams(
+export const getLastMatchesBetweenTeams = async (
   supabase: SupabaseClient,
-  teamA: string,
-  teamB: string,
-  limit = 5
-) {
+  teamAId: string,
+  teamBId: string,
+  limit: number = 5
+): Promise<RecentMatch[]> => {
   const { data, error } = await supabase
     .from("matches")
     .select(
       `
-      id,
-      match_date,
-      home_score,
-      away_score,
-      is_finished,
-      team_id,
-      opponent_team_id,
-      competition_type,
-      game_type
+      *,
+      team:teams!matches_team_id_fkey(*),
+      opponent_team:teams!matches_opponent_team_id_fkey(*),
+      opponent_guest_team:guest_clubs(*)
     `
     )
-    .or(`(team_id.eq.${teamA},opponent_team_id.eq.${teamB})`)
-    .or(`(team_id.eq.${teamB},opponent_team_id.eq.${teamA})`)
-    .eq("is_finished", true)
+    .or(
+      `and(team_id.eq.${teamAId},opponent_team_id.eq.${teamBId}),and(team_id.eq.${teamBId},opponent_team_id.eq.${teamAId})`
+    )
     .order("match_date", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
   return data ?? [];
-}
+};
 
 /**
  * get last N matches of a team
  */
-export async function getLastMatchesOfTeam(
+export const getLastMatchesOfTeam = async (
   supabase: SupabaseClient,
   teamId: string,
-  limit = 5
-) {
+  limit: number = 5
+): Promise<RecentMatch[]> => {
   const { data, error } = await supabase
     .from("matches")
-    .select(`
-      id,
-      match_date,
-      home_score,
-      away_score,
-      is_finished,
-      team_id,
-      opponent_team_id,
-      competition_type,
-      game_type
-    `)
+    .select(
+      `
+      *,
+      team:teams!matches_team_id_fkey(*),
+      opponent_team:teams!matches_opponent_team_id_fkey(*),
+      opponent_guest_team:guest_clubs(*)
+    `
+    )
     .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
-    .eq("is_finished", true)
     .order("match_date", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
   return data ?? [];
-}
+};
 
 /**
  * match attendance
@@ -568,16 +518,27 @@ export async function setMatchAttendance(
   status: "attending" | "absent" | "maybe"
 ) {
   // use onConflict for proper upsert
-  const { error } = await supabase
-    .from("match_attendance")
-    .upsert(
-      {
-        match_id: matchId,
-        user_id: userId,
-        status,
-      },
-      { onConflict: "match_id,user_id" }
-    );
+  const { error } = await supabase.from("match_attendance").upsert(
+    {
+      match_id: matchId,
+      user_id: userId,
+      status,
+    },
+    { onConflict: "match_id,user_id" }
+  );
 
   if (error) throw error;
 }
+
+export const getMatchAttendanceList = async (
+  supabase: SupabaseClient,
+  matchId: string
+): Promise<MatchAttendance[]> => {
+  const { data, error } = await supabase
+    .from("match_attendance")
+    .select("*")
+    .eq("match_id", matchId);
+
+  if (error) throw error;
+  return data;
+};

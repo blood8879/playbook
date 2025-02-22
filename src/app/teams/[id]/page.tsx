@@ -17,14 +17,12 @@ import { Calendar, MapPin, Users, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
-import { getTeamMembers, getTeamById as fetchTeamById, searchTeams } from "@/features/teams/api";
+import {
+  getTeamMembers,
+  getTeamById as fetchTeamById,
+  searchTeams,
+} from "@/features/teams/api";
 import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
-
-interface TeamDetailPageProps {
-  params: {
-    id: string;
-  };
-}
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -102,9 +100,9 @@ export default function TeamDetailPage() {
       {/* 팀 상세 정보 헤더 */}
       <div className="flex items-start gap-6 mb-8">
         <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg overflow-hidden flex items-center justify-center">
-          {team?.logo_url ? (
+          {team?.emblem_url ? (
             <img
-              src={team.logo_url}
+              src={team.emblem_url}
               alt={`${team.name} 로고`}
               className="w-full h-full object-cover"
             />
@@ -115,12 +113,6 @@ export default function TeamDetailPage() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold">{team?.name}</h1>
           <p className="mt-2 text-gray-600">{team?.description}</p>
-          {team?.home_stadium && (
-            <div className="flex items-center mt-2 text-gray-500">
-              <MapPin className="w-4 h-4 mr-1" />
-              <span>{team.home_stadium}</span>
-            </div>
-          )}
         </div>
       </div>
 

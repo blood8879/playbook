@@ -15,14 +15,54 @@ export type TeamFormData = z.infer<typeof teamSchema>;
 
 export interface Team {
   id: string;
-  created_at: string;
   name: string;
   description: string | null;
-  logo_url: string | null;
+  emblem_url: string | null;
   city: string;
   gu: string;
   leader_id: string;
-  home_stadium: string | null;
+  created_at: string;
+}
+
+export interface GuestTeam {
+  id: string;
+  name: string;
+  emblem_url: string | null;
+  team_id: string;
+  created_at: string;
+}
+
+export interface TeamMatch {
+  id: string;
+  team_id: string;
+  match_date: string;
+  registration_deadline: string;
+  venue: string;
+  description: string | null;
+  competition_type: "friendly" | "league" | "cup";
+  game_type: "5vs5" | "6vs6" | "11vs11";
+  is_tbd: boolean;
+  opponent_team_id: string | null;
+  opponent_guest_team_id: string | null;
+  is_finished: boolean;
+  home_score: number | null;
+  away_score: number | null;
+  created_at: string;
+  team?: Team;
+  opponent_team?: Team;
+  opponent_guest_team?: GuestTeam;
+}
+
+export interface HeadToHeadStats {
+  teamAWins: number;
+  teamBWins: number;
+  draws: number;
+  teamAHomeWins: number;
+  teamBHomeWins: number;
+  homeDraws: number;
+  teamAAwayWins: number;
+  teamBAwayWins: number;
+  awayDraws: number;
 }
 
 export type TeamMemberRole = "owner" | "manager" | "member";
@@ -86,30 +126,24 @@ export interface Stadium {
   description: string | null;
 }
 
-/**
- * @ai_context
- * Added below interface for match details
- */
-export interface TeamMatch {
+export interface MatchAttendance {
   id: string;
-  team_id: string;
+  match_id: string;
+  user_id: string;
+  status: "attending" | "absent" | "maybe";
+  created_at: string;
+}
+
+export interface RecentMatch {
+  id: string;
   match_date: string;
-  registration_deadline: string;
-  opponent_team_id: string | null;
-  opponent_guest_team_id: string | null;
-  is_tbd: boolean;
-  venue: string;
-  description: string | null;
-  competition_type: "friendly" | "league" | "cup";
-  game_type: "5vs5" | "6vs6" | "11vs11";
   home_score: number | null;
   away_score: number | null;
+  team_id: string;
+  opponent_team_id: string | null;
+  opponent_guest_team_id: string | null;
   is_finished: boolean;
-  // optional joined data
+  team?: Team;
   opponent_team?: Team;
-  opponent_guest_team?: {
-    id: string;
-    name: string;
-    description: string | null;
-  };
+  opponent_guest_team?: GuestTeam;
 }
