@@ -24,21 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const POSITIONS = [
-  { value: "GK", label: "GK" },
-  { value: "DL", label: "DL" },
-  { value: "DC", label: "DC" },
-  { value: "DR", label: "DR" },
-  { value: "DMC", label: "DMC" },
-  { value: "ML", label: "ML" },
-  { value: "MC", label: "MC" },
-  { value: "MR", label: "MR" },
-  { value: "AML", label: "AML" },
-  { value: "AMC", label: "AMC" },
-  { value: "AMR", label: "AMR" },
-  { value: "ST", label: "ST" },
-];
+import { PositionSelector } from "./PositionSelector";
+import { NumberSelector } from "./NumberSelector";
+import { POSITIONS } from "../constants/positions";
 
 interface TeamDetailProps {
   team: Team;
@@ -125,58 +113,19 @@ export function TeamDetail({ team }: TeamDetailProps) {
                   <label className="text-sm font-medium">
                     선호 포지션 (복수 선택 가능)
                   </label>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {POSITIONS.map((position) => (
-                      <div
-                        key={position.value}
-                        className="flex items-center space-x-2"
-                      >
-                        <Checkbox
-                          id={position.value}
-                          checked={selectedPositions.includes(position.value)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedPositions([
-                                ...selectedPositions,
-                                position.value,
-                              ]);
-                            } else {
-                              setSelectedPositions(
-                                selectedPositions.filter(
-                                  (p) => p !== position.value
-                                )
-                              );
-                            }
-                          }}
-                        />
-                        <label
-                          htmlFor={position.value}
-                          className="text-sm leading-none"
-                        >
-                          {position.label}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  <PositionSelector
+                    selectedPositions={selectedPositions}
+                    onPositionsChange={setSelectedPositions}
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">선호 등번호</label>
-                  <Select
+                  <NumberSelector
                     value={preferredNumber}
-                    onValueChange={setPreferredNumber}
-                  >
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder="등번호 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableNumbers.map((number) => (
-                        <SelectItem key={number} value={number.toString()}>
-                          {number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={setPreferredNumber}
+                    availableNumbers={availableNumbers}
+                  />
                 </div>
 
                 <div>

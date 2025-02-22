@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 
 interface TeamMembersProps {
   teamId: string;
@@ -88,6 +89,7 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
     positions: string[];
     number: string;
   } | null>(null);
+  const { toast } = useToast();
 
   const updateMutation = useMutation({
     mutationFn: ({ memberId, data }: { memberId: string; data: any }) =>
@@ -315,18 +317,36 @@ export function TeamMembers({ teamId, isLeader }: TeamMembersProps) {
                     포지션/등번호 수정
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>
-                      updateTeamMember(supabase, member.id, {
-                        role:
-                          member.role === "manager"
-                            ? "member"
-                            : ("manager" as TeamMemberRole),
-                      }).then(() => {
+                    onClick={async () => {
+                      try {
+                        await updateTeamMember(supabase, member.id, {
+                          role:
+                            member.role === "manager"
+                              ? "member"
+                              : ("manager" as TeamMemberRole),
+                        });
+
                         queryClient.invalidateQueries({
                           queryKey: ["teamMembers", teamId],
                         });
-                      })
-                    }
+
+                        toast({
+                          title:
+                            member.role === "manager"
+                              ? "매니저 권한이 해제되었습니다"
+                              : "매니저로 지정되었습니다",
+                          description: `${member.profiles?.name}님의 권한이 변경되었습니다.`,
+                          variant: "default",
+                        });
+                      } catch (error) {
+                        toast({
+                          title: "권한 변경 실패",
+                          description:
+                            "권한을 변경하는 중 오류가 발생했습니다.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
                   >
                     {member.role === "manager"
                       ? "매니저 권한 해제"

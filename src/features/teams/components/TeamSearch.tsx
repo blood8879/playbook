@@ -29,21 +29,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { searchTeams, createJoinRequest } from "../api";
-
-const POSITIONS = [
-  { value: "GK", label: "GK" },
-  { value: "DL", label: "DL" },
-  { value: "DC", label: "DC" },
-  { value: "DR", label: "DR" },
-  { value: "DMC", label: "DMC" },
-  { value: "ML", label: "ML" },
-  { value: "MC", label: "MC" },
-  { value: "MR", label: "MR" },
-  { value: "AML", label: "AML" },
-  { value: "AMC", label: "AMC" },
-  { value: "AMR", label: "AMR" },
-  { value: "ST", label: "ST" },
-];
+import { PositionSelector } from "./PositionSelector";
+import { NumberSelector } from "./NumberSelector";
+import { POSITIONS } from "../constants/positions";
 
 export function TeamSearch() {
   const { supabase, user } = useSupabase();
@@ -135,52 +123,17 @@ export function TeamSearch() {
                       <label className="text-sm font-medium">
                         선호 포지션 (복수 선택 가능)
                       </label>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {POSITIONS.map((position) => (
-                          <div
-                            key={position.value}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={position.value}
-                              checked={selectedPositions.includes(
-                                position.value
-                              )}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedPositions([
-                                    ...selectedPositions,
-                                    position.value,
-                                  ]);
-                                } else {
-                                  setSelectedPositions(
-                                    selectedPositions.filter(
-                                      (p) => p !== position.value
-                                    )
-                                  );
-                                }
-                              }}
-                            />
-                            <label
-                              htmlFor={position.value}
-                              className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {position.label}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
+                      <PositionSelector
+                        selectedPositions={selectedPositions}
+                        onPositionsChange={setSelectedPositions}
+                      />
                     </div>
 
                     <div>
                       <label className="text-sm font-medium">선호 등번호</label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="99"
+                      <NumberSelector
                         value={preferredNumber}
-                        onChange={(e) => setPreferredNumber(e.target.value)}
-                        className="mt-2"
+                        onChange={setPreferredNumber}
                       />
                     </div>
 

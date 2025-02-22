@@ -7,6 +7,8 @@ import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { area } from "@/constants/area";
 import { TeamFormData } from "../types";
+import { PositionSelector } from "./PositionSelector";
+import { NumberSelector } from "./NumberSelector";
 
 interface TeamFormProps {
   onSubmit: (event?: React.BaseSyntheticEvent) => Promise<void>;

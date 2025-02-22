@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Position } from "../constants/positions";
 
 export const teamSchema = z.object({
   name: z
@@ -17,10 +18,11 @@ export interface Team {
   created_at: string;
   name: string;
   description: string | null;
-  emblem_url: string | null;
+  logo_url: string | null;
   city: string;
   gu: string;
   leader_id: string;
+  home_stadium: string | null;
 }
 
 export type TeamMemberRole = "owner" | "manager" | "member";
@@ -29,17 +31,15 @@ export type TeamMemberStatus = "pending" | "active" | "inactive";
 export interface TeamMember {
   id: string;
   team_id: string;
-  user_id: string;
-  role: TeamMemberRole;
-  status: TeamMemberStatus;
-  created_at: string;
-  updated_at: string;
-  // profiles 테이블과 join된 데이터
-  user: {
-    email: string;
+  profiles: {
+    id: string;
     name: string;
-    avatar_url: string | null;
+    email: string;
+    avatar_url?: string;
   };
+  role: TeamMemberRole;
+  positions?: Position[];
+  number?: number;
 }
 
 export type InvitationStatus = "pending" | "accepted" | "rejected" | "expired";
@@ -59,5 +59,22 @@ export interface TeamInvitation {
   inviter: {
     email: string;
     name: string;
+  };
+}
+
+export interface TeamJoinRequest {
+  id: string;
+  team_id: string;
+  user_id: string;
+  preferred_positions: Position[];
+  preferred_number: number;
+  message?: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  profiles?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
   };
 }
