@@ -15,10 +15,20 @@ import {
 } from "@/features/teams/api";
 import { TeamMatch } from "@/features/teams/types";
 import { Button } from "@/components/ui/button";
-import { Loader2, Users, Check, X, HelpCircle, Shield } from "lucide-react";
+import {
+  Loader2,
+  Users,
+  Check,
+  X,
+  HelpCircle,
+  Shield,
+  Trophy,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Image from "next/image";
+import { useTeamMemberRole } from "@/features/teams/hooks/useTeamMemberRole";
+import { MatchTimeline } from "@/features/teams/components/MatchTimeline";
 
 /**
  * @ai_context
@@ -140,7 +150,10 @@ export default function MatchDetailPage() {
         matchData?.team_id || "",
         matchData?.opponent_team_id || ""
       ),
-    enabled: !!matchData?.team_id && !!matchData?.opponent_team_id,
+    enabled:
+      !!matchData?.team_id &&
+      !!matchData?.opponent_team_id &&
+      !matchData.is_tbd,
   });
 
   // 최근 상대전적
@@ -155,7 +168,10 @@ export default function MatchDetailPage() {
           isFinished: true,
         }
       ),
-    enabled: !!matchData?.team?.id && !!matchData?.opponent_team?.id,
+    enabled:
+      !!matchData?.team?.id &&
+      !!matchData?.opponent_team?.id &&
+      !matchData.is_tbd,
   });
 
   // 홈팀 최근 경기
@@ -165,7 +181,7 @@ export default function MatchDetailPage() {
       getLastMatchesOfTeam(supabase, matchData.team?.id || "", {
         isFinished: true,
       }),
-    enabled: !!matchData?.team?.id,
+    enabled: !!matchData?.team?.id && !matchData.is_tbd,
   });
 
   // 원정팀 최근 경기
@@ -175,7 +191,87 @@ export default function MatchDetailPage() {
       getLastMatchesOfTeam(supabase, matchData.opponent_team?.id || "", {
         isFinished: true,
       }),
-    enabled: !!matchData?.opponent_team?.id,
+    enabled: !!matchData?.opponent_team?.id && !matchData.is_tbd,
+  });
+
+  // 팀 멤버 역할 확인
+  const { isOwner, isManager } = useTeamMemberRole(
+    matchData?.team?.id,
+    user?.id
+  );
+
+  // 운영진 여부 확인 (리더 또는 매니저)
+  const isStaff = isOwner || isManager;
+
+  // 골 정보 조회
+  const { data: goals } = useQuery({
+    queryKey: ["matchGoals", matchId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("match_goals")
+        .select(
+          `
+          *,
+          profiles (
+            id,
+            name,
+            email
+          )
+        `
+        )
+        .eq("match_id", matchId)
+        .order("created_at", { ascending: true });
+
+      return data;
+    },
+    enabled: !!matchId && matchData?.is_finished,
+  });
+
+  // 어시스트 정보 조회
+  const { data: assists } = useQuery({
+    queryKey: ["matchAssists", matchId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("match_assists")
+        .select(
+          `
+          *,
+          profiles (
+            id,
+            name,
+            email
+          )
+        `
+        )
+        .eq("match_id", matchId);
+
+      return data;
+    },
+    enabled: !!matchId && matchData?.is_finished,
+  });
+
+  // MOM 정보 조회
+  const { data: mom } = useQuery({
+    queryKey: ["matchMom", matchId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("match_mom")
+        .select(
+          `
+          *,
+          profiles (
+            id,
+            name,
+            email
+          )
+        `
+        )
+        .eq("match_id", matchId)
+        .single();
+
+      return data;
+    },
+    enabled: !!matchId && matchData?.is_finished,
   });
 
   if (isMatchLoading || isAttendanceLoading) {
@@ -197,6 +293,7 @@ export default function MatchDetailPage() {
     );
   }
 
+  console.log("matchData", matchData);
   return (
     <div className="container py-8 max-w-4xl mx-auto">
       {/* 경기 헤더 */}
@@ -252,282 +349,326 @@ export default function MatchDetailPage() {
         </div>
       </div>
 
-      {/* Head to Head */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-xl font-bold mb-6">Head-to-Head</h2>
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            {matchData.team?.emblem_url ? (
-              <Image
-                src={matchData.team?.emblem_url}
-                alt={matchData.team?.name || ""}
-                width={48}
-                height={48}
-                className="rounded-full"
-              />
-            ) : (
-              <Shield className="w-6 h-6" />
-            )}
-            <span className="font-semibold">{matchData.team?.name}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="font-semibold">
-              {matchData.opponent_team?.name ||
-                matchData.opponent_guest_team?.name ||
-                "상대팀"}
-            </span>
-            {matchData.opponent_team?.emblem_url ? (
-              <Image
-                src={matchData.opponent_team?.emblem_url}
-                alt={
-                  matchData.opponent_team?.name ||
-                  matchData.opponent_guest_team?.name ||
-                  ""
-                }
-                width={48}
-                height={48}
-                className="rounded-full"
-              />
-            ) : (
-              <Shield className="w-6 h-6" />
-            )}
-          </div>
-        </div>
+      {matchData?.is_finished ? (
+        // 경기가 종료된 경우
+        <>
+          <MatchTimeline
+            match={matchData}
+            goals={goals || []}
+            assists={assists || []}
+            mom={mom}
+          />
 
-        <div className="relative">
-          {/* Total Matches */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="text-5xl font-bold text-purple-900">
-              {(headToHead?.teamAWins || 0) +
-                (headToHead?.draws || 0) +
-                (headToHead?.teamBWins || 0)}
-            </div>
-            <div className="text-sm text-gray-600 text-center">Played</div>
-          </div>
-
-          {/* Stats Bars */}
-          <div className="space-y-4">
-            {/* Total Wins */}
-            <div className="flex items-center">
-              <div className="w-[45%]">
-                <div
-                  className="bg-blue-600 h-6 rounded-sm"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamAWins || 0) * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                    marginLeft: "auto",
-                  }}
+          {/* 운영진에게만 결과 수정 버튼 표시 */}
+          {isStaff && (
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">경기 결과 수정</h2>
+                  <p className="text-sm text-gray-500">
+                    경기 결과를 수정할 수 있습니다.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => router.push(`/matches/${matchId}/result`)}
                 >
-                  <span className="px-2 text-black text-sm">
-                    {headToHead?.teamAWins || 0}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Total Wins</div>
+                  결과 수정
+                </Button>
               </div>
-              <div className="w-[10%]" />
-              <div className="w-[45%]">
-                <div
-                  className="bg-red-600 h-6 rounded-sm"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamBWins || 0) * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                  }}
-                >
-                  <span className="px-2 text-black text-sm">
-                    {headToHead?.teamBWins || 0}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1 text-right">
-                  Total Wins
-                </div>
-              </div>
-            </div>
-
-            {/* Home */}
-            <div className="flex items-center">
-              <div className="w-[45%]">
-                <div
-                  className="bg-blue-600 h-6 rounded-sm opacity-75"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamAWins || 0) * 0.6 * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                    marginLeft: "auto",
-                  }}
-                >
-                  <span className="px-2 text-black text-sm">
-                    {Math.floor((headToHead?.teamAWins || 0) * 0.6)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Home</div>
-              </div>
-              <div className="w-[10%]" />
-              <div className="w-[45%]">
-                <div
-                  className="bg-red-600 h-6 rounded-sm opacity-75"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamBWins || 0) * 0.6 * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                  }}
-                >
-                  <span className="px-2 text-black text-sm">
-                    {Math.floor((headToHead?.teamBWins || 0) * 0.6)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1 text-right">
-                  Home
-                </div>
-              </div>
-            </div>
-
-            {/* Away */}
-            <div className="flex items-center">
-              <div className="w-[45%]">
-                <div
-                  className="bg-blue-600 h-6 rounded-sm opacity-50"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamAWins || 0) * 0.4 * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                    marginLeft: "auto",
-                  }}
-                >
-                  <span className="px-2 text-black text-sm">
-                    {Math.floor((headToHead?.teamAWins || 0) * 0.4)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Away</div>
-              </div>
-              <div className="w-[10%] text-center">
-                <div className="text-sm font-semibold text-gray-600 mt-6">
-                  Draws {headToHead?.draws || 0}
-                </div>
-              </div>
-              <div className="w-[45%]">
-                <div
-                  className="bg-red-600 h-6 rounded-sm opacity-50"
-                  style={{
-                    width: `${
-                      ((headToHead?.teamBWins || 0) * 0.4 * 100) /
-                      ((headToHead?.teamAWins || 0) +
-                        (headToHead?.draws || 0) +
-                        (headToHead?.teamBWins || 0) || 1)
-                    }%`,
-                  }}
-                >
-                  <span className="px-2 text-black text-sm">
-                    {Math.floor((headToHead?.teamBWins || 0) * 0.4)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 mt-1 text-right">
-                  Away
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 최근 상대전적 */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">최근 상대전적</h2>
-        {recentMeetings && recentMeetings.length > 0 ? (
-          <div className="space-y-3">
-            {recentMeetings.map((match) => (
-              <div
-                key={match.id}
-                className="flex items-center justify-between p-2 border-b"
-              >
-                <div className="text-sm">
-                  {format(new Date(match.match_date), "yyyy.MM.dd")}
-                </div>
-                <div className="font-bold">
-                  {match.home_score} - {match.away_score}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center text-gray-500">상대전적이 없습니다.</div>
-        )}
-      </div>
-
-      {/* 각 팀 최근 경기 */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold mb-4">
-            {matchData.team?.name} 최근 경기
-          </h2>
-          {homeTeamRecent && homeTeamRecent.length > 0 ? (
-            <div className="space-y-3">
-              {homeTeamRecent.map((match) => (
-                <div
-                  key={match.id}
-                  className="flex items-center justify-between p-2 border-b"
-                >
-                  <div className="text-sm">
-                    {format(new Date(match.match_date), "yyyy.MM.dd")}
-                  </div>
-                  <div className="font-bold">
-                    {match.home_score} - {match.away_score}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-gray-500">
-              최근 진행한 경기가 없습니다.
             </div>
           )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold mb-4">
-            {matchData.opponent_team?.name || "상대팀"} 최근 경기
-          </h2>
-          {awayTeamRecent && awayTeamRecent.length > 0 ? (
-            <div className="space-y-3">
-              {awayTeamRecent.map((match) => (
-                <div
-                  key={match.id}
-                  className="flex items-center justify-between p-2 border-b"
-                >
-                  <div className="text-sm">
-                    {format(new Date(match.match_date), "yyyy.MM.dd")}
+        </>
+      ) : (
+        // 경기가 종료되지 않은 경우
+        <>
+          {/* 참석 여부 컨트롤 */}
+          {/* 종료되지 않은 경기에서만 보이는 통계 섹션 */}
+          {!matchData.is_tbd &&
+            (matchData.opponent_team || matchData.opponent_guest_team) && (
+              <>
+                {/* Head to Head 통계 */}
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-lg font-semibold mb-4">Head to Head</h2>
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      {matchData.team?.emblem_url ? (
+                        <Image
+                          src={matchData.team?.emblem_url}
+                          alt={matchData.team?.name || ""}
+                          width={48}
+                          height={48}
+                          className="rounded-full"
+                        />
+                      ) : (
+                        <Shield className="w-6 h-6" />
+                      )}
+                      <span className="font-semibold">
+                        {matchData.team?.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold">
+                        {matchData.opponent_team?.name || "게스트팀"}
+                      </span>
+                      {matchData.opponent_team?.emblem_url ? (
+                        <Image
+                          src={matchData.opponent_team?.emblem_url}
+                          alt={matchData.opponent_team?.name || ""}
+                          width={48}
+                          height={48}
+                          className="rounded-full"
+                        />
+                      ) : (
+                        <Shield className="w-6 h-6" />
+                      )}
+                    </div>
                   </div>
-                  <div className="font-bold">
-                    {match.home_score} - {match.away_score}
+
+                  <div className="flex flex-col items-center mb-8">
+                    <div className="text-5xl font-bold text-purple-900">
+                      {(headToHead?.teamAWins || 0) +
+                        (headToHead?.draws || 0) +
+                        (headToHead?.teamBWins || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Played</div>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Total Wins */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-blue-100 rounded-lg relative">
+                          <div
+                            className="h-full bg-blue-600 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamAWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamAWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          Total Wins
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-gray-600">
+                          {headToHead?.draws || 0}
+                        </div>
+                        <div className="text-sm text-gray-500">Draws</div>
+                      </div>
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-red-100 rounded-lg relative">
+                          <div
+                            className="h-full bg-red-600 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamBWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamBWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1 text-right">
+                          Total Wins
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Home */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-blue-50 rounded-lg relative">
+                          <div
+                            className="h-full bg-blue-400 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamAHomeWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamAHomeWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Home</div>
+                      </div>
+                      <div className="w-[10%]" />
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-red-50 rounded-lg relative">
+                          <div
+                            className="h-full bg-red-400 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamBHomeWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamBHomeWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1 text-right">
+                          Home
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Away */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-blue-50 rounded-lg relative">
+                          <div
+                            className="h-full bg-blue-300 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamAAwayWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamAAwayWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Away</div>
+                      </div>
+                      <div className="w-[10%]" />
+                      <div className="w-[45%]">
+                        <div className="h-8 bg-red-50 rounded-lg relative">
+                          <div
+                            className="h-full bg-red-300 rounded-lg"
+                            style={{
+                              width: `${
+                                ((headToHead?.teamBAwayWins || 0) * 100) /
+                                ((headToHead?.teamAWins || 0) +
+                                  (headToHead?.draws || 0) +
+                                  (headToHead?.teamBWins || 0) || 1)
+                              }%`,
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                              {headToHead?.teamBAwayWins || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1 text-right">
+                          Away
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-gray-500">
-              최근 진행한 경기가 없습니다.
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* 참석 현황 */}
+                {/* 최근 상대전적 */}
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-lg font-semibold mb-4">최근 상대전적</h2>
+                  {recentMeetings && recentMeetings.length > 0 ? (
+                    <div className="space-y-3">
+                      {recentMeetings.map((match) => (
+                        <div
+                          key={match.id}
+                          className="flex items-center justify-between p-2 border-b"
+                        >
+                          <div className="text-sm">
+                            {format(new Date(match.match_date), "yyyy.MM.dd")}
+                          </div>
+                          <div className="font-bold">
+                            {match.home_score} - {match.away_score}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500">
+                      상대전적이 없습니다.
+                    </div>
+                  )}
+                </div>
+
+                {/* 양팀 최근 5경기 */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-4">
+                      {matchData.team?.name} 최근 5경기
+                    </h2>
+                    {homeTeamRecent && homeTeamRecent.length > 0 ? (
+                      <div className="space-y-3">
+                        {homeTeamRecent.map((match) => (
+                          <div
+                            key={match.id}
+                            className="flex items-center justify-between p-2 border-b"
+                          >
+                            <div className="text-sm">
+                              {format(new Date(match.match_date), "yyyy.MM.dd")}
+                            </div>
+                            <div className="font-bold">
+                              {match.home_score} - {match.away_score}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        최근 진행한 경기가 없습니다.
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-4">
+                      {matchData.opponent_team?.name || "상대팀"} 최근 5경기
+                    </h2>
+                    {awayTeamRecent && awayTeamRecent.length > 0 ? (
+                      <div className="space-y-3">
+                        {awayTeamRecent.map((match) => (
+                          <div
+                            key={match.id}
+                            className="flex items-center justify-between p-2 border-b"
+                          >
+                            <div className="text-sm">
+                              {format(new Date(match.match_date), "yyyy.MM.dd")}
+                            </div>
+                            <div className="font-bold">
+                              {match.home_score} - {match.away_score}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        최근 진행한 경기가 없습니다.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+        </>
+      )}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Users className="w-5 h-5" />
@@ -686,6 +827,27 @@ export default function MatchDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* 경기 결과 업데이트 버튼 - 운영진에게만 표시 */}
+      {isStaff && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              <h2 className="text-lg font-semibold">경기 결과 관리</h2>
+            </div>
+            <Button
+              onClick={() => router.push(`/matches/${matchId}/result`)}
+              className="bg-yellow-500 hover:bg-yellow-600"
+            >
+              경기 결과 업데이트
+            </Button>
+          </div>
+          <p className="text-sm text-gray-500 mt-2">
+            참석 여부, 골, 어시스트, MOM 등의 경기 결과를 기록할 수 있습니다.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

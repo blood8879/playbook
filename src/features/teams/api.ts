@@ -575,3 +575,155 @@ export async function getMatchAttendanceList(
     team_id: attendance.profiles?.team_members?.[0]?.team_id,
   }));
 }
+
+export async function updateMatchResult(
+  supabase: SupabaseClient,
+  matchId: string,
+  data: any,
+  attendanceList: any[]
+) {
+  try {
+    // 1. 기존 데이터 삭제
+    await Promise.all([
+      supabase.from("match_goals").delete().eq("match_id", matchId),
+      supabase.from("match_assists").delete().eq("match_id", matchId),
+      supabase.from("match_mom").delete().eq("match_id", matchId),
+    ]);
+
+    // 2. 참석 상태 업데이트
+    const attendancePromises = Object.entries(data).map(
+      ([userId, stats]: [string, any]) =>
+        supabase.from("match_attendance").upsert({
+          match_id: matchId,
+          user_id: userId,
+          status: stats.attendance,
+        })
+    );
+
+    // 3. 팀별 골 수 계산
+    let homeScore = 0;
+    let awayScore = 0;
+
+    // 매치 정보 조회
+    const { data: match } = await supabase
+      .from("matches")
+      .select(
+        `
+        *,
+        team:teams!matches_team_id_fkey(*),
+        opponent_team:teams!matches_opponent_team_id_fkey(*)
+      `
+      )
+      .eq("id", matchId)
+      .single();
+
+    // 각 선수의 골 수 계산 및 팀별 합산
+    Object.entries(data).forEach(([userId, stats]: [string, any]) => {
+      const totalGoals =
+        (stats.fieldGoals || 0) +
+        (stats.freeKickGoals || 0) +
+        (stats.penaltyGoals || 0);
+
+      // 선수의 팀 확인
+      const isHomeTeam = attendanceList.find(
+        (a) => a.user_id === userId && a.team_id === match.team_id
+      );
+
+      if (isHomeTeam) {
+        homeScore += totalGoals;
+      } else {
+        awayScore += totalGoals;
+      }
+    });
+
+    // 4. matches 테이블 업데이트
+    await supabase
+      .from("matches")
+      .update({
+        home_score: homeScore,
+        away_score: awayScore,
+        is_finished: true,
+      })
+      .eq("id", matchId);
+
+    console.log("homeScore", homeScore);
+    console.log("awayScore", awayScore);
+    console.log("match", match);
+
+    // 5. 골 기록 업데이트
+    const goalPromises = Object.entries(data).flatMap(
+      ([userId, stats]: [string, any]) => {
+        const goals = [];
+        if (stats.fieldGoals > 0) {
+          for (let i = 0; i < stats.fieldGoals; i++) {
+            goals.push({
+              match_id: matchId,
+              user_id: userId,
+              goal_type: "field",
+            });
+          }
+        }
+        if (stats.freeKickGoals > 0) {
+          for (let i = 0; i < stats.freeKickGoals; i++) {
+            goals.push({
+              match_id: matchId,
+              user_id: userId,
+              goal_type: "freekick",
+            });
+          }
+        }
+        if (stats.penaltyGoals > 0) {
+          for (let i = 0; i < stats.penaltyGoals; i++) {
+            goals.push({
+              match_id: matchId,
+              user_id: userId,
+              goal_type: "penalty",
+            });
+          }
+        }
+        return goals.map((goal) => supabase.from("match_goals").insert(goal));
+      }
+    );
+
+    // 어시스트 업데이트
+    const assistPromises = Object.entries(data).flatMap(
+      ([userId, stats]: [string, any]) => {
+        const assists = [];
+        if (stats.assists > 0) {
+          for (let i = 0; i < stats.assists; i++) {
+            assists.push({
+              match_id: matchId,
+              user_id: userId,
+            });
+          }
+        }
+        return assists.map((assist) =>
+          supabase.from("match_assists").insert(assist)
+        );
+      }
+    );
+
+    // MOM 업데이트
+    const momUser = Object.entries(data).find(
+      ([_, stats]: [string, any]) => stats.isMom
+    )?.[0];
+    if (momUser) {
+      await supabase.from("match_mom").insert({
+        match_id: matchId,
+        user_id: momUser,
+      });
+    }
+
+    // 모든 업데이트 실행
+    await Promise.all([
+      ...attendancePromises,
+      ...goalPromises,
+      ...assistPromises,
+    ]);
+
+    return true;
+  } catch (error) {
+    console.error("Error updating match result:", error);
+    throw error;
+  }
+}
