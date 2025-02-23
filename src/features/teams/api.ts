@@ -1,5 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { TeamFormData, Team, TeamInvitation, TeamMatch } from "./types";
+import {
+  TeamFormData,
+  Team,
+  TeamInvitation,
+  TeamMatch,
+  HeadToHeadStats,
+} from "./types";
 import { TeamMemberRole, TeamMemberStatus } from "./types/index";
 
 /**

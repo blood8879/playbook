@@ -235,9 +235,7 @@ export default function MatchDetailPage() {
             </span>
             {matchData.opponent_team?.emblem_url ? (
               <Image
-                src={
-                  matchData.opponent_team?.emblem_url || "/team-placeholder.png"
-                }
+                src={matchData.opponent_team?.emblem_url}
                 alt={
                   matchData.opponent_team?.name ||
                   matchData.opponent_guest_team?.name ||
@@ -261,7 +259,7 @@ export default function MatchDetailPage() {
           <div className="flex items-center gap-3">
             {matchData.team?.emblem_url ? (
               <Image
-                src={matchData.team?.emblem_url || "/team-placeholder.png"}
+                src={matchData.team?.emblem_url}
                 alt={matchData.team?.name || ""}
                 width={48}
                 height={48}
@@ -275,13 +273,12 @@ export default function MatchDetailPage() {
           <div className="flex items-center gap-3">
             <span className="font-semibold">
               {matchData.opponent_team?.name ||
-                matchData.opponent_guest_team?.name}
+                matchData.opponent_guest_team?.name ||
+                "상대팀"}
             </span>
             {matchData.opponent_team?.emblem_url ? (
               <Image
-                src={
-                  matchData.opponent_team?.emblem_url || "/team-placeholder.png"
-                }
+                src={matchData.opponent_team?.emblem_url}
                 alt={
                   matchData.opponent_team?.name ||
                   matchData.opponent_guest_team?.name ||
@@ -325,7 +322,7 @@ export default function MatchDetailPage() {
                     marginLeft: "auto",
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {headToHead?.teamAWins || 0}
                   </span>
                 </div>
@@ -344,7 +341,7 @@ export default function MatchDetailPage() {
                     }%`,
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {headToHead?.teamBWins || 0}
                   </span>
                 </div>
@@ -369,7 +366,7 @@ export default function MatchDetailPage() {
                     marginLeft: "auto",
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {Math.floor((headToHead?.teamAWins || 0) * 0.6)}
                   </span>
                 </div>
@@ -388,7 +385,7 @@ export default function MatchDetailPage() {
                     }%`,
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {Math.floor((headToHead?.teamBWins || 0) * 0.6)}
                   </span>
                 </div>
@@ -413,7 +410,7 @@ export default function MatchDetailPage() {
                     marginLeft: "auto",
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {Math.floor((headToHead?.teamAWins || 0) * 0.4)}
                   </span>
                 </div>
@@ -436,7 +433,7 @@ export default function MatchDetailPage() {
                     }%`,
                   }}
                 >
-                  <span className="px-2 text-white text-sm">
+                  <span className="px-2 text-black text-sm">
                     {Math.floor((headToHead?.teamBWins || 0) * 0.4)}
                   </span>
                 </div>
