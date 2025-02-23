@@ -546,23 +546,26 @@ export async function getMatchAttendanceList(
     .select(
       `
       *,
-      user:profiles!match_attendance_user_id_fkey (
+      profiles (
         id,
         email,
-        name
-      ),
-      team:team_members (
-        team_id
+        name,
+        team_members (
+          team_id
+        )
       )
     `
     )
     .eq("match_id", matchId);
+
+  console.log("data", data);
+  console.log("error", error);
 
   if (error) throw error;
 
   // team_id 정보를 match_attendance 객체에 포함
   return data.map((attendance) => ({
     ...attendance,
-    team_id: attendance.team?.[0]?.team_id,
+    team_id: attendance.profiles?.team_members?.[0]?.team_id,
   }));
 }

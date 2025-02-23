@@ -62,10 +62,45 @@ export default function MatchDetailPage() {
 
   // 참석 상태별 인원 계산
   const attendanceCount = {
+    // 전체 참석 현황
     attending:
       attendanceList?.filter((a) => a.status === "attending").length || 0,
     absent: attendanceList?.filter((a) => a.status === "absent").length || 0,
     maybe: attendanceList?.filter((a) => a.status === "maybe").length || 0,
+
+    // 홈팀 참석 현황
+    homeAttending:
+      attendanceList?.filter(
+        (a) => a.status === "attending" && a.team_id === matchData?.team?.id
+      ).length || 0,
+    homeAbsent:
+      attendanceList?.filter(
+        (a) => a.status === "absent" && a.team_id === matchData?.team?.id
+      ).length || 0,
+    homeMaybe:
+      attendanceList?.filter(
+        (a) => a.status === "maybe" && a.team_id === matchData?.team?.id
+      ).length || 0,
+
+    // 어웨이팀 참석 현황 (팀이 없는 사용자도 어웨이팀으로 포함)
+    awayAttending:
+      attendanceList?.filter(
+        (a) =>
+          a.status === "attending" &&
+          (a.team_id === matchData?.opponent_team?.id || !a.team_id)
+      ).length || 0,
+    awayAbsent:
+      attendanceList?.filter(
+        (a) =>
+          a.status === "absent" &&
+          (a.team_id === matchData?.opponent_team?.id || !a.team_id)
+      ).length || 0,
+    awayMaybe:
+      attendanceList?.filter(
+        (a) =>
+          a.status === "maybe" &&
+          (a.team_id === matchData?.opponent_team?.id || !a.team_id)
+      ).length || 0,
   };
 
   // 로컬 상태로 참석 여부 관리
@@ -543,14 +578,20 @@ export default function MatchDetailPage() {
           <div className="space-y-2">
             <div className="flex gap-2 flex-wrap">
               <h4 className="text-sm font-medium mb-2 w-full">참석자 명단</h4>
-              {homeTeamRecent?.map((match) => (
-                <span
-                  key={match.id}
-                  className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
-                >
-                  {match.home_score} - {match.away_score}
-                </span>
-              ))}
+              {attendanceList
+                ?.filter(
+                  (a) =>
+                    a.status === "attending" &&
+                    a.team_id === matchData?.team?.id
+                )
+                .map((attendance) => (
+                  <span
+                    key={attendance.user_id}
+                    className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
+                  >
+                    {attendance.profiles?.name || attendance.profiles?.email}
+                  </span>
+                ))}
             </div>
           </div>
         </div>
@@ -558,7 +599,7 @@ export default function MatchDetailPage() {
         {/* 어웨이팀 참석 현황 */}
         <div>
           <h3 className="text-md font-semibold mb-3">
-            {matchData.opponent_team?.name} (어웨이)
+            {matchData.opponent_team?.name || "상대팀"} (어웨이)
           </h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="bg-green-50 p-4 rounded-lg text-center">
@@ -596,14 +637,20 @@ export default function MatchDetailPage() {
           <div className="space-y-2">
             <div className="flex gap-2 flex-wrap">
               <h4 className="text-sm font-medium mb-2 w-full">참석자 명단</h4>
-              {awayTeamRecent?.map((match) => (
-                <span
-                  key={match.id}
-                  className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
-                >
-                  {match.home_score} - {match.away_score}
-                </span>
-              ))}
+              {attendanceList
+                ?.filter(
+                  (a) =>
+                    a.status === "attending" &&
+                    (a.team_id === matchData?.opponent_team?.id || !a.team_id)
+                )
+                .map((attendance) => (
+                  <span
+                    key={attendance.user_id}
+                    className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
+                  >
+                    {attendance.profiles?.name || attendance.profiles?.email}
+                  </span>
+                ))}
             </div>
           </div>
         </div>
