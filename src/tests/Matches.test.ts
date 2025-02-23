@@ -68,6 +68,55 @@ describe("Matches Tests", () => {
   });
 
   afterAll(async () => {
+    // 매치 데이터 삭제는 이미 테스트에서 수행됨
+
+    // 첫 번째 팀 삭제
+    if (createdTeamId) {
+      // 팀 멤버 먼저 삭제
+      const { error: memberError } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("team_id", createdTeamId);
+
+      if (memberError) {
+        console.error("첫 번째 팀 멤버 삭제 중 오류 발생:", memberError);
+      }
+
+      // 팀 삭제
+      const { error: teamError } = await supabase
+        .from("teams")
+        .delete()
+        .eq("id", createdTeamId);
+
+      if (teamError) {
+        console.error("첫 번째 팀 삭제 중 오류 발생:", teamError);
+      }
+    }
+
+    // 두 번째 팀(상대팀) 삭제
+    if (secondTeamId) {
+      // 팀 멤버 먼저 삭제
+      const { error: memberError } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("team_id", secondTeamId);
+
+      if (memberError) {
+        console.error("두 번째 팀 멤버 삭제 중 오류 발생:", memberError);
+      }
+
+      // 팀 삭제
+      const { error: teamError } = await supabase
+        .from("teams")
+        .delete()
+        .eq("id", secondTeamId);
+
+      if (teamError) {
+        console.error("두 번째 팀 삭제 중 오류 발생:", teamError);
+      }
+    }
+
+    // 테스트 유저 로그아웃
     await supabase.auth.signOut();
   });
 

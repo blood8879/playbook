@@ -82,6 +82,29 @@ describe("Teams Tests", () => {
   });
 
   afterAll(async () => {
+    // 생성된 팀 삭제
+    if (createdTeamId) {
+      // 팀 멤버 먼저 삭제
+      const { error: memberError } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("team_id", createdTeamId);
+
+      if (memberError) {
+        console.error("팀 멤버 삭제 중 오류 발생:", memberError);
+      }
+
+      // 팀 삭제
+      const { error: teamError } = await supabase
+        .from("teams")
+        .delete()
+        .eq("id", createdTeamId);
+
+      if (teamError) {
+        console.error("팀 삭제 중 오류 발생:", teamError);
+      }
+    }
+
     // 로그아웃
     await supabase.auth.signOut();
   });
