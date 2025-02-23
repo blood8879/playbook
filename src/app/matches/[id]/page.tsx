@@ -29,6 +29,7 @@ import { ko } from "date-fns/locale";
 import Image from "next/image";
 import { useTeamMemberRole } from "@/features/teams/hooks/useTeamMemberRole";
 import { MatchTimeline } from "@/features/teams/components/MatchTimeline";
+import { UpdateOpponent } from "@/features/teams/components/UpdateOpponent";
 
 /**
  * @ai_context
@@ -142,7 +143,7 @@ export default function MatchDetailPage() {
   };
 
   // Head to Head 통계
-  const { data: headToHead } = useQuery({
+  const { data: headToHead, isLoading: isHeadToHeadLoading } = useQuery({
     queryKey: ["headToHead", matchData?.team_id, matchData?.opponent_team_id],
     queryFn: () =>
       getHeadToHeadStats(
@@ -199,9 +200,6 @@ export default function MatchDetailPage() {
     matchData?.team?.id,
     user?.id
   );
-
-  // 운영진 여부 확인 (리더 또는 매니저)
-  const isStaff = isOwner || isManager;
 
   // 골 정보 조회
   const { data: goals } = useQuery({
@@ -274,6 +272,25 @@ export default function MatchDetailPage() {
     enabled: !!matchId && matchData?.is_finished,
   });
 
+  // 팀 멤버권한 확인
+  const { data: teamMember } = useQuery({
+    queryKey: ["teamMember", matchData?.team_id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("team_members")
+        .select("role")
+        .eq("team_id", matchData?.team_id)
+        .eq("user_id", user?.id)
+        .single();
+      return data;
+    },
+    enabled: !!user && !!matchData?.team_id,
+  });
+
+  const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
+
+  console.log("isAdmin", isAdmin);
+
   if (isMatchLoading || isAttendanceLoading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -293,7 +310,6 @@ export default function MatchDetailPage() {
     );
   }
 
-  console.log("matchData", matchData);
   return (
     <div className="container py-8 max-w-4xl mx-auto">
       {/* 경기 헤더 */}
@@ -348,6 +364,9 @@ export default function MatchDetailPage() {
           </div>
         </div>
       </div>
+      {isAdmin && (
+        <UpdateOpponent matchId={matchId} teamId={matchData.team_id} />
+      )}
 
       {matchData?.is_finished ? (
         // 경기가 종료된 경우
@@ -360,7 +379,7 @@ export default function MatchDetailPage() {
           />
 
           {/* 운영진에게만 결과 수정 버튼 표시 */}
-          {isStaff && (
+          {isAdmin && (
             <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -829,7 +848,7 @@ export default function MatchDetailPage() {
       </div>
 
       {/* 경기 결과 업데이트 버튼 - 운영진에게만 표시 */}
-      {isStaff && (
+      {isAdmin && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
