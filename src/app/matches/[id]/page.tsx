@@ -30,6 +30,7 @@ import Image from "next/image";
 import { useTeamMemberRole } from "@/features/teams/hooks/useTeamMemberRole";
 import { MatchTimeline } from "@/features/teams/components/MatchTimeline";
 import { UpdateOpponent } from "@/features/teams/components/UpdateOpponent";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * @ai_context
@@ -290,6 +291,31 @@ export default function MatchDetailPage() {
   const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
 
   console.log("isAdmin", isAdmin);
+
+  const getMatchResult = (match: any, teamId: string) => {
+    if (match.team_id === teamId) {
+      // 홈팀인 경우
+      if (match.home_score > match.away_score) return "W";
+      if (match.home_score < match.away_score) return "L";
+      return "D";
+    } else {
+      // 원정팀인 경우
+      if (match.home_score < match.away_score) return "W";
+      if (match.home_score > match.away_score) return "L";
+      return "D";
+    }
+  };
+
+  const getResultBadgeColor = (result: string) => {
+    switch (result) {
+      case "W":
+        return "text-green-600";
+      case "L":
+        return "text-red-600";
+      default:
+        return "text-gray-600";
+    }
+  };
 
   if (isMatchLoading || isAttendanceLoading) {
     return (
@@ -637,19 +663,37 @@ export default function MatchDetailPage() {
                     </h2>
                     {homeTeamRecent && homeTeamRecent.length > 0 ? (
                       <div className="space-y-3">
-                        {homeTeamRecent.map((match) => (
-                          <div
-                            key={match.id}
-                            className="flex items-center justify-between p-2 border-b"
-                          >
-                            <div className="text-sm">
-                              {format(new Date(match.match_date), "yyyy.MM.dd")}
+                        {homeTeamRecent.map((match) => {
+                          const result = getMatchResult(
+                            match,
+                            matchData.team_id
+                          );
+                          return (
+                            <div
+                              key={match.id}
+                              className="flex items-center justify-between p-2 border-b"
+                            >
+                              <div className="text-sm">
+                                {format(
+                                  new Date(match.match_date),
+                                  "yyyy.MM.dd"
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-bold">
+                                  {match.home_score} - {match.away_score}
+                                </div>
+                                <div
+                                  className={`font-bold ${getResultBadgeColor(
+                                    result
+                                  )}`}
+                                >
+                                  {result}
+                                </div>
+                              </div>
                             </div>
-                            <div className="font-bold">
-                              {match.home_score} - {match.away_score}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center text-gray-500">
@@ -657,25 +701,44 @@ export default function MatchDetailPage() {
                       </div>
                     )}
                   </div>
+
                   <div className="bg-white rounded-lg shadow-sm p-6">
                     <h2 className="text-lg font-semibold mb-4">
                       {matchData.opponent_team?.name || "상대팀"} 최근 5경기
                     </h2>
                     {awayTeamRecent && awayTeamRecent.length > 0 ? (
                       <div className="space-y-3">
-                        {awayTeamRecent.map((match) => (
-                          <div
-                            key={match.id}
-                            className="flex items-center justify-between p-2 border-b"
-                          >
-                            <div className="text-sm">
-                              {format(new Date(match.match_date), "yyyy.MM.dd")}
+                        {awayTeamRecent.map((match) => {
+                          const result = getMatchResult(
+                            match,
+                            matchData.opponent_team?.id || ""
+                          );
+                          return (
+                            <div
+                              key={match.id}
+                              className="flex items-center justify-between p-2 border-b"
+                            >
+                              <div className="text-sm">
+                                {format(
+                                  new Date(match.match_date),
+                                  "yyyy.MM.dd"
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-bold">
+                                  {match.home_score} - {match.away_score}
+                                </div>
+                                <div
+                                  className={`font-bold ${getResultBadgeColor(
+                                    result
+                                  )}`}
+                                >
+                                  {result}
+                                </div>
+                              </div>
                             </div>
-                            <div className="font-bold">
-                              {match.home_score} - {match.away_score}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center text-gray-500">

@@ -65,7 +65,12 @@ interface MatchFormData {
   game_type: "5vs5" | "6vs6" | "11vs11";
 }
 
-export function TeamMatches({ matches, isLoading, teamId, isLeader }: TeamMatchesProps) {
+export function TeamMatches({
+  matches,
+  isLoading,
+  teamId,
+  isLeader,
+}: TeamMatchesProps) {
   const { supabase } = useSupabase();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -135,16 +140,19 @@ export function TeamMatches({ matches, isLoading, teamId, isLeader }: TeamMatche
             opponent_guest_team_id = inserted.id;
           } else {
             if (insertErr.code === "23505") {
-              const { data: existingClub, error: existingError } = await supabase
-                .from("guest_clubs")
-                .select("id")
-                .eq("team_id", teamId)
-                .eq("name", data.opponent_guest_team.name)
-                .single();
+              const { data: existingClub, error: existingError } =
+                await supabase
+                  .from("guest_clubs")
+                  .select("id")
+                  .eq("team_id", teamId)
+                  .eq("name", data.opponent_guest_team.name)
+                  .single();
               if (!existingError && existingClub) {
                 opponent_guest_team_id = existingClub.id;
               } else {
-                throw new Error("게스트 클럽 정보를 확인하는 중 오류가 발생했습니다.");
+                throw new Error(
+                  "게스트 클럽 정보를 확인하는 중 오류가 발생했습니다."
+                );
               }
             } else {
               throw new Error("게스트 클럽 등록 중 오류가 발생했습니다.");
@@ -206,7 +214,8 @@ export function TeamMatches({ matches, isLoading, teamId, isLeader }: TeamMatche
       console.error("경기 일정 등록 오류:", error);
       toast({
         title: "경기 일정 등록 실패",
-        description: error.message || "경기 일정을 등록하는 중 오류가 발생했습니다.",
+        description:
+          error.message || "경기 일정을 등록하는 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     },
@@ -469,39 +478,42 @@ export function TeamMatches({ matches, isLoading, teamId, isLeader }: TeamMatche
       />
 
       <div className="space-y-2">
-        {matches.map((match) => (
-          <div
-            key={match.id}
-            className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-            onClick={() => router.push(`/matches/${match.id}`)}
-          >
-            <div className="text-sm text-gray-500">
-              {format(new Date(match.match_date), "PPP p", { locale: ko })}
-            </div>
-            <div className="font-medium">
-              {match.is_tbd
-                ? "상대팀 미정"
-                : match.opponent_team?.name || match.opponent_guest_team?.name}
-            </div>
-            <div className="text-sm text-gray-500">{match.venue}</div>
-            <div className="text-sm text-gray-500">
-              {match.competition_type === "friendly"
-                ? "친선전"
-                : match.competition_type === "league"
-                ? "리그"
-                : "컵"}{" "}
-              · {match.game_type}
-            </div>
-            {match.description && (
-              <div className="text-sm text-gray-500 mt-2">
-                {match.description}
+        {matches
+          .filter((match) => !match.is_finished)
+          .map((match) => (
+            <div
+              key={match.id}
+              className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+              onClick={() => router.push(`/matches/${match.id}`)}
+            >
+              <div className="text-sm text-gray-500">
+                {format(new Date(match.match_date), "PPP p", { locale: ko })}
               </div>
-            )}
-          </div>
-        ))}
-        {matches.length === 0 && (
+              <div className="font-medium">
+                {match.is_tbd
+                  ? "상대팀 미정"
+                  : match.opponent_team?.name ||
+                    match.opponent_guest_team?.name}
+              </div>
+              <div className="text-sm text-gray-500">{match.venue}</div>
+              <div className="text-sm text-gray-500">
+                {match.competition_type === "friendly"
+                  ? "친선전"
+                  : match.competition_type === "league"
+                  ? "리그"
+                  : "컵"}{" "}
+                · {match.game_type}
+              </div>
+              {match.description && (
+                <div className="text-sm text-gray-500 mt-2">
+                  {match.description}
+                </div>
+              )}
+            </div>
+          ))}
+        {matches.filter((match) => !match.is_finished).length === 0 && (
           <div className="text-center text-gray-500 py-4">
-            등록된 경기 일정이 없습니다
+            예정된 경기 일정이 없습니다
           </div>
         )}
       </div>
