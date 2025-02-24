@@ -205,6 +205,36 @@ export function TeamMatches({
         .single();
 
       if (error) throw error;
+
+      // 홈팀 멤버 조회
+      const { data: homeTeamMembers } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", teamId);
+
+      // 어웨이팀 멤버 조회 (등록된 팀인 경우에만)
+      let awayTeamMembers = [];
+      if (data.opponent_type === "registered" && data.opponent_team_id) {
+        const { data: awayMembers } = await supabase
+          .from("team_members")
+          .select("user_id")
+          .eq("team_id", data.opponent_team_id);
+        awayTeamMembers = awayMembers || [];
+      }
+
+      // 모든 팀원들의 참석 상태를 "maybe"로 초기화
+      const allMembers = [...(homeTeamMembers || []), ...awayTeamMembers];
+      const attendancePromises = allMembers.map((member) =>
+        supabase.from("match_attendance").insert({
+          match_id: match.id,
+          user_id: member.user_id,
+          team_id: member.team_id,
+          status: "maybe",
+        })
+      );
+
+      await Promise.all(attendancePromises);
+
       return match;
     },
     onSuccess: () => {
