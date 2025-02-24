@@ -161,6 +161,7 @@ export function UpdateOpponent({ matchId, teamId }: UpdateOpponentProps) {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["teamMatches"] });
       setOpen(false);
     },
     onSuccess: () => {
@@ -228,19 +229,18 @@ export function UpdateOpponent({ matchId, teamId }: UpdateOpponentProps) {
                       ? teams?.find(
                           (team) => team.id === formData.opponent_team_id
                         )?.name
-                      : "상대팀을 검색하세요"}
+                      : "팀을 선택하세요"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
-                  <Command className="w-full">
-                    <CommandInput placeholder="팀 이름 검색..." />
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="팀 검색..." />
                     <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
                     <CommandGroup>
                       {teams?.map((team) => (
                         <CommandItem
                           key={team.id}
-                          value={team.name}
                           onSelect={() => {
                             setFormData({
                               ...formData,

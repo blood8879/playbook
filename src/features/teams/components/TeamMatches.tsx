@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -30,6 +30,23 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { TeamMatchesSkeleton } from "./TeamMatchesSkeleton";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { subHours } from "date-fns";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TeamMatchesProps {
   matches: TeamMatch[];
@@ -51,10 +68,10 @@ interface GuestClub {
 }
 
 interface MatchFormData {
-  match_date: string;
-  registration_deadline: string;
+  match_date: Date | null;
+  registration_deadline: Date | null;
   opponent_type: "registered" | "guest" | "tbd";
-  opponent_team_id?: string;
+  opponent_team_id: string;
   opponent_guest_team?: {
     name: string;
     description?: string;
@@ -80,15 +97,29 @@ export function TeamMatches({
   const [guestClubs, setGuestClubs] = useState<GuestClub[]>([]);
   const [stadiums, setStadiums] = useState<Stadium[]>([]);
   const [didFetchExtras, setDidFetchExtras] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
 
   const [formData, setFormData] = useState<MatchFormData>({
-    match_date: "",
-    registration_deadline: "",
+    match_date: null,
+    registration_deadline: null,
     opponent_type: "tbd",
+    opponent_team_id: "",
     venue: "",
     description: "",
     competition_type: "friendly",
     game_type: "11vs11",
+  });
+
+  const { data: teams } = useQuery({
+    queryKey: ["teams"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name")
+        .neq("id", teamId);
+      if (error) throw error;
+      return data;
+    },
   });
 
   const handleOpenDialog = async () => {
@@ -127,39 +158,31 @@ export function TeamMatches({
 
       if (data.opponent_type === "guest" && data.opponent_guest_team) {
         try {
-          const { data: inserted, error: insertErr } = await supabase
+          const { data: existingTeam } = await supabase
             .from("guest_clubs")
-            .insert({
-              ...data.opponent_guest_team,
-              team_id: teamId,
-            })
-            .select()
+            .select("id")
+            .eq("team_id", teamId)
+            .eq("name", data.opponent_guest_team.name)
             .single();
 
-          if (!insertErr) {
-            opponent_guest_team_id = inserted.id;
+          if (existingTeam) {
+            opponent_guest_team_id = existingTeam.id;
           } else {
-            if (insertErr.code === "23505") {
-              const { data: existingClub, error: existingError } =
-                await supabase
-                  .from("guest_clubs")
-                  .select("id")
-                  .eq("team_id", teamId)
-                  .eq("name", data.opponent_guest_team.name)
-                  .single();
-              if (!existingError && existingClub) {
-                opponent_guest_team_id = existingClub.id;
-              } else {
-                throw new Error(
-                  "게스트 클럽 정보를 확인하는 중 오류가 발생했습니다."
-                );
-              }
-            } else {
-              throw new Error("게스트 클럽 등록 중 오류가 발생했습니다.");
-            }
+            const { data: newTeam, error: insertError } = await supabase
+              .from("guest_clubs")
+              .insert({
+                name: data.opponent_guest_team.name,
+                description: data.opponent_guest_team.description,
+                team_id: teamId,
+              })
+              .select()
+              .single();
+
+            if (insertError) throw insertError;
+            opponent_guest_team_id = newTeam.id;
           }
-        } catch (e: any) {
-          throw e;
+        } catch (error) {
+          throw error;
         }
       }
 
@@ -181,25 +204,17 @@ export function TeamMatches({
         .select()
         .single();
 
-      if (error) {
-        if (error.code === "23503") {
-          throw new Error("선택한 상대 팀이 존재하지 않습니다.");
-        } else if (error.code === "23514") {
-          throw new Error("경기 일정이 등록 마감일보다 빠를 수 없습니다.");
-        } else {
-          throw new Error("경기 일정을 등록하는 중 오류가 발생했습니다.");
-        }
-      }
-
+      if (error) throw error;
       return match;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teamMatches", teamId] });
       setIsAddingMatch(false);
       setFormData({
-        match_date: "",
-        registration_deadline: "",
+        match_date: null,
+        registration_deadline: null,
         opponent_type: "tbd",
+        opponent_team_id: "",
         venue: "",
         description: "",
         competition_type: "friendly",
@@ -226,6 +241,14 @@ export function TeamMatches({
     addMatchMutation.mutate(formData);
   };
 
+  const handleMatchDateChange = (date: Date | null) => {
+    setFormData((prev) => ({
+      ...prev,
+      match_date: date,
+      registration_deadline: date ? subHours(date, 48) : null,
+    }));
+  };
+
   if (isLoading) {
     return <TeamMatchesSkeleton />;
   }
@@ -250,30 +273,34 @@ export function TeamMatches({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="match_date">경기 일시</Label>
-                <Input
-                  id="match_date"
-                  type="datetime-local"
-                  value={formData.match_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, match_date: e.target.value })
-                  }
-                  required
+                <DatePicker
+                  selected={formData.match_date}
+                  onChange={handleMatchDateChange}
+                  showTimeSelect
+                  timeIntervals={30}
+                  dateFormat="yyyy.MM.dd aa h:mm"
+                  timeFormat="aa h:mm"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2"
+                  placeholderText="경기 일시를 선택하세요"
+                  locale={ko}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="registration_deadline">참가 신청 마감</Label>
-                <Input
-                  id="registration_deadline"
-                  type="datetime-local"
-                  value={formData.registration_deadline}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      registration_deadline: e.target.value,
-                    })
+                <DatePicker
+                  selected={formData.registration_deadline}
+                  onChange={(date: Date | null) =>
+                    setFormData({ ...formData, registration_deadline: date })
                   }
-                  required
+                  showTimeSelect
+                  timeIntervals={30}
+                  dateFormat="yyyy.MM.dd aa h:mm"
+                  timeFormat="aa h:mm"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2"
+                  placeholderText="참가 신청 마감 시간을 선택하세요"
+                  locale={ko}
+                  maxDate={formData.match_date}
                 />
               </div>
 
@@ -357,6 +384,59 @@ export function TeamMatches({
                         })
                       }
                     />
+                  </div>
+                )}
+
+                {formData.opponent_type === "registered" && (
+                  <div className="space-y-2">
+                    <Label>등록된 팀 선택</Label>
+                    <Popover open={commandOpen} onOpenChange={setCommandOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={commandOpen}
+                          className="w-full justify-between"
+                        >
+                          {formData.opponent_team_id
+                            ? teams?.find(
+                                (team) => team.id === formData.opponent_team_id
+                              )?.name
+                            : "팀을 선택하세요"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="팀 검색..." />
+                          <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                          <CommandGroup>
+                            {teams?.map((team) => (
+                              <CommandItem
+                                key={team.id}
+                                onSelect={() => {
+                                  setFormData({
+                                    ...formData,
+                                    opponent_team_id: team.id,
+                                  });
+                                  setCommandOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.opponent_team_id === team.id
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {team.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
               </div>

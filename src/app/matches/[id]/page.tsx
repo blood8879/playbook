@@ -23,6 +23,7 @@ import {
   HelpCircle,
   Shield,
   Trophy,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -30,7 +31,16 @@ import Image from "next/image";
 import { useTeamMemberRole } from "@/features/teams/hooks/useTeamMemberRole";
 import { MatchTimeline } from "@/features/teams/components/MatchTimeline";
 import { UpdateOpponent } from "@/features/teams/components/UpdateOpponent";
-import { Badge } from "@/components/ui/badge";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * @ai_context
@@ -317,6 +327,41 @@ export default function MatchDetailPage() {
     }
   };
 
+  // 새로운 상태 추가
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // 삭제 뮤테이션 추가
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      // 1. 참석 정보 삭제
+      const { error: attendanceError } = await supabase
+        .from("match_attendance")
+        .delete()
+        .eq("match_id", matchId);
+
+      if (attendanceError) throw attendanceError;
+
+      // 2. 경기 삭제
+      const { error: matchError } = await supabase
+        .from("matches")
+        .delete()
+        .eq("id", matchId);
+
+      if (matchError) throw matchError;
+    },
+    onSuccess: () => {
+      router.push(`/teams/${matchData?.team_id}/matches`);
+    },
+    onError: (error) => {
+      console.error("경기 삭제 중 오류:", error);
+      toast({
+        title: "경기 삭제 실패",
+        description: "경기를 삭제하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isMatchLoading || isAttendanceLoading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -390,8 +435,37 @@ export default function MatchDetailPage() {
           </div>
         </div>
       </div>
+      {/* 운영진에게만 결과 수정 버튼 표시 */}
       {isAdmin && (
-        <UpdateOpponent matchId={matchId} teamId={matchData.team_id} />
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">경기 결과 수정</h2>
+              <p className="text-sm text-gray-500">
+                경기 결과를 수정할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {isAdmin && (
+                <UpdateOpponent matchId={matchId} teamId={matchData.team_id} />
+              )}
+              <Button
+                onClick={() => router.push(`/matches/${matchId}/result`)}
+                className="bg-yellow-500 hover:bg-yellow-600"
+              >
+                경기 결과 업데이트
+              </Button>
+              {!matchData.is_finished && ( // 종료되지 않은 경기만 삭제 가능
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  경기 삭제
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {matchData?.is_finished ? (
@@ -403,25 +477,6 @@ export default function MatchDetailPage() {
             assists={assists || []}
             mom={mom}
           />
-
-          {/* 운영진에게만 결과 수정 버튼 표시 */}
-          {isAdmin && (
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">경기 결과 수정</h2>
-                  <p className="text-sm text-gray-500">
-                    경기 결과를 수정할 수 있습니다.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => router.push(`/matches/${matchId}/result`)}
-                >
-                  결과 수정
-                </Button>
-              </div>
-            </div>
-          )}
         </>
       ) : (
         // 경기가 종료되지 않은 경우
@@ -910,26 +965,47 @@ export default function MatchDetailPage() {
         </div>
       </div>
 
-      {/* 경기 결과 업데이트 버튼 - 운영진에게만 표시 */}
-      {isAdmin && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              <h2 className="text-lg font-semibold">경기 결과 관리</h2>
-            </div>
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              경기 삭제 확인
+            </DialogTitle>
+          </DialogHeader>
+          <DialogDescription>
+            정말로 이 경기를 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며, 모든
+            참석 정보가 함께 삭제됩니다.
+          </DialogDescription>
+          <DialogFooter className="flex gap-2">
             <Button
-              onClick={() => router.push(`/matches/${matchId}/result`)}
-              className="bg-yellow-500 hover:bg-yellow-600"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={deleteMutation.isPending}
             >
-              경기 결과 업데이트
+              취소
             </Button>
-          </div>
-          <p className="text-sm text-gray-500 mt-2">
-            참석 여부, 골, 어시스트, MOM 등의 경기 결과를 기록할 수 있습니다.
-          </p>
-        </div>
-      )}
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteMutation.mutate();
+                setIsDeleteDialogOpen(false);
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  삭제 중...
+                </>
+              ) : (
+                "삭제"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
