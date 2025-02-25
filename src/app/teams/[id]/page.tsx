@@ -23,6 +23,7 @@ import {
   searchTeams,
 } from "@/features/teams/api";
 import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
+import { TeamMatchResults } from "@/features/teams/components/TeamMatchResults";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -55,6 +56,8 @@ export default function TeamDetailPage() {
     enabled: !!user && !!teamId,
   });
   const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
+  const isLeader = team?.leader_id === user?.id;
+  const canManageMatches = isLeader || isAdmin;
 
   // 모든 경기 일정 한 번에 조회
   const {
@@ -92,8 +95,6 @@ export default function TeamDetailPage() {
   if (isTeamLoading) {
     return <TeamDetailSkeleton />;
   }
-
-  const isLeader = team?.leader_id === user?.id;
 
   return (
     <div className="container py-8">
@@ -143,6 +144,7 @@ export default function TeamDetailPage() {
             <TabsList>
               <TabsTrigger value="schedule">일정 관리</TabsTrigger>
               <TabsTrigger value="members">팀원 관리</TabsTrigger>
+              <TabsTrigger value="results">경기 결과</TabsTrigger>
               <TabsTrigger value="stadiums">경기장 관리</TabsTrigger>
             </TabsList>
 
@@ -151,12 +153,16 @@ export default function TeamDetailPage() {
                 matches={matches || []}
                 isLoading={isMatchesLoading}
                 teamId={teamId}
-                isLeader={isAdmin}
+                canManageMatches={canManageMatches}
               />
             </TabsContent>
 
             <TabsContent value="members">
               <TeamManagement teamId={teamId} isLeader={isLeader} />
+            </TabsContent>
+
+            <TabsContent value="results">
+              <TeamMatchResults teamId={teamId} />
             </TabsContent>
 
             <TabsContent value="stadiums">

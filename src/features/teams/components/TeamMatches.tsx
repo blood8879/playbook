@@ -3,7 +3,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import {
+  Plus,
+  CalendarPlus,
+  CalendarDays,
+  MapPin,
+  Users,
+  CalendarX,
+  CalendarCheck,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -47,18 +55,50 @@ import {
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface TeamMatchesProps {
   matches: TeamMatch[];
   isLoading: boolean;
   teamId: string;
-  isLeader: boolean;
+  canManageMatches: boolean;
 }
 
 /**
  * @ai_context
  * This component handles listing and creating matches for a team.
  */
+
+// 경기 상태에 따른 배지 색상 반환 함수
+export const getStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "scheduled":
+      return "outline";
+    case "in_progress":
+      return "secondary";
+    case "completed":
+      return "default";
+    default:
+      return "outline";
+  }
+};
+
+// 경기 상태 텍스트 반환 함수
+export const getStatusText = (status: string) => {
+  switch (status) {
+    case "scheduled":
+      return "예정됨";
+    case "in_progress":
+      return "진행 중";
+    case "completed":
+      return "완료됨";
+    default:
+      return "미정";
+  }
+};
 
 interface GuestClub {
   id: string;
@@ -86,7 +126,7 @@ export function TeamMatches({
   matches,
   isLoading,
   teamId,
-  isLeader,
+  canManageMatches,
 }: TeamMatchesProps) {
   const { supabase } = useSupabase();
   const router = useRouter();
@@ -98,6 +138,27 @@ export function TeamMatches({
   const [stadiums, setStadiums] = useState<Stadium[]>([]);
   const [didFetchExtras, setDidFetchExtras] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+
+  // 경기 상태 및 참가자 수 계산
+  const processedMatches = matches.map((match) => {
+    // 경기 상태 계산
+    let status = "scheduled";
+    if (match.is_finished) {
+      status = "completed";
+    } else if (new Date(match.match_date) < new Date() && !match.is_finished) {
+      status = "in_progress";
+    }
+
+    // 참가자 수는 실제 데이터가 없으므로 임시로 0으로 설정
+    // 실제로는 match_attendances 테이블에서 가져와야 함
+    const participants_count = 0;
+
+    return {
+      ...match,
+      status,
+      participants_count,
+    };
+  });
 
   const [formData, setFormData] = useState<MatchFormData>({
     match_date: null,
@@ -284,346 +345,153 @@ export function TeamMatches({
   }
 
   return (
-    <div className="space-y-4">
-      {isLeader && (
-        <div className="flex justify-end">
-          <Button onClick={handleOpenDialog}>
-            <Plus className="w-4 h-4 mr-2" />
-            경기 일정 등록
-          </Button>
+    <div className="space-y-6">
+      {/* 다가오는 경기 섹션 */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold">다가오는 경기</h2>
+          {canManageMatches && (
+            <div className="flex space-x-2">
+              <Link href={`/matches/schedule?team=${teamId}`}>
+                <Button size="sm" variant="outline">
+                  <CalendarPlus className="w-4 h-4 mr-2" />
+                  정기 일정 생성
+                </Button>
+              </Link>
+              <Link href={`/matches/new?team=${teamId}`}>
+                <Button size="sm">
+                  <CalendarPlus className="w-4 h-4 mr-2" />새 경기 일정
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
-      )}
 
-      <Dialog open={isAddingMatch} onOpenChange={setIsAddingMatch}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>새 경기 일정 등록</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="match_date">경기 일시</Label>
-                <DatePicker
-                  selected={formData.match_date}
-                  onChange={handleMatchDateChange}
-                  showTimeSelect
-                  timeIntervals={30}
-                  dateFormat="yyyy.MM.dd aa h:mm"
-                  timeFormat="aa h:mm"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2"
-                  placeholderText="경기 일시를 선택하세요"
-                  locale={ko}
-                />
-              </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-40 w-full" />
+            ))}
+          </div>
+        ) : processedMatches.filter((match) => !match.is_finished).length >
+          0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {processedMatches
+              .filter((match) => !match.is_finished)
+              .map((match) => (
+                <Link href={`/matches/${match.id}`} key={match.id}>
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex justify-between">
+                        <span>
+                          vs{" "}
+                          {match.is_tbd
+                            ? "상대팀 미정"
+                            : match.opponent_team?.name ||
+                              match.opponent_guest_team?.name}
+                        </span>
+                        <Badge variant={getStatusBadgeVariant(match.status)}>
+                          {getStatusText(match.status)}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-gray-500 mb-2">
+                        <CalendarDays className="w-4 h-4 inline-block mr-1" />
+                        {format(new Date(match.match_date), "PPP p", {
+                          locale: ko,
+                        })}
+                      </div>
+                      <div className="text-sm text-gray-500 mb-2">
+                        <MapPin className="w-4 h-4 inline-block mr-1" />
+                        {match.venue || "장소 미정"}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <Users className="w-4 h-4 inline-block mr-1" />
+                        참가 인원: {match.participants_count || 0}명
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-6">
+            <CalendarX className="w-12 h-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-700 mb-2">
+              예정된 경기가 없습니다
+            </h3>
+            <p className="text-gray-500 text-center mb-4">
+              새로운 경기 일정을 추가하여 팀 활동을 시작해보세요.
+            </p>
+            {canManageMatches && (
+              <Link href={`/matches/new?team=${teamId}`}>
+                <Button variant="outline">새 경기 일정 만들기</Button>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="registration_deadline">참가 신청 마감</Label>
-                <DatePicker
-                  selected={formData.registration_deadline}
-                  onChange={(date: Date | null) =>
-                    setFormData({ ...formData, registration_deadline: date })
-                  }
-                  showTimeSelect
-                  timeIntervals={30}
-                  dateFormat="yyyy.MM.dd aa h:mm"
-                  timeFormat="aa h:mm"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2"
-                  placeholderText="참가 신청 마감 시간을 선택하세요"
-                  locale={ko}
-                  maxDate={formData.match_date}
-                />
-              </div>
+      {/* 지난 경기 섹션 */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">지난 경기</h2>
 
-              <div className="space-y-2">
-                <Label>상대팀 정보</Label>
-                <RadioGroup
-                  value={formData.opponent_type}
-                  onValueChange={(value: "registered" | "guest" | "tbd") =>
-                    setFormData({ ...formData, opponent_type: value })
-                  }
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="registered" id="registered" />
-                    <Label htmlFor="registered">등록된 팀</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="guest" id="guest" />
-                    <Label htmlFor="guest">게스트 팀</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="tbd" id="tbd" />
-                    <Label htmlFor="tbd">미정</Label>
-                  </div>
-                </RadioGroup>
-
-                {formData.opponent_type === "guest" && (
-                  <div className="space-y-2 mt-2">
-                    {guestClubs && guestClubs.length > 0 ? (
-                      <Select
-                        value={formData.opponent_guest_team?.name || ""}
-                        onValueChange={(value) => {
-                          const selectedClub = guestClubs.find(
-                            (club) => club.name === value
-                          );
-                          setFormData({
-                            ...formData,
-                            opponent_guest_team: {
-                              name: value,
-                              description: selectedClub?.description || "",
-                            },
-                          });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="기존 게스트 팀 선택 또는 새로 입력" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {guestClubs.map((club) => (
-                            <SelectItem key={club.id} value={club.name}>
-                              {club.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : null}
-
-                    <Input
-                      placeholder="게스트 팀 이름"
-                      value={formData.opponent_guest_team?.name || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          opponent_guest_team: {
-                            ...formData.opponent_guest_team,
-                            name: e.target.value,
-                          },
-                        })
-                      }
-                      required
-                    />
-                    <Textarea
-                      placeholder="게스트 팀 설명"
-                      value={formData.opponent_guest_team?.description || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          opponent_guest_team: {
-                            ...formData.opponent_guest_team,
-                            description: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-                )}
-
-                {formData.opponent_type === "registered" && (
-                  <div className="space-y-2">
-                    <Label>등록된 팀 선택</Label>
-                    <Popover open={commandOpen} onOpenChange={setCommandOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={commandOpen}
-                          className="w-full justify-between"
-                        >
-                          {formData.opponent_team_id
-                            ? teams?.find(
-                                (team) => team.id === formData.opponent_team_id
-                              )?.name
-                            : "팀을 선택하세요"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="팀 검색..." />
-                          <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
-                          <CommandGroup>
-                            {teams?.map((team) => (
-                              <CommandItem
-                                key={team.id}
-                                onSelect={() => {
-                                  setFormData({
-                                    ...formData,
-                                    opponent_team_id: team.id,
-                                  });
-                                  setCommandOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.opponent_team_id === team.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {team.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="competition_type">대회 유형</Label>
-                <Select
-                  value={formData.competition_type}
-                  onValueChange={(value: "friendly" | "league" | "cup") =>
-                    setFormData({ ...formData, competition_type: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="대회 유형을 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="friendly">친선전</SelectItem>
-                    <SelectItem value="league">리그</SelectItem>
-                    <SelectItem value="cup">컵</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="game_type">경기 유형</Label>
-                <Select
-                  value={formData.game_type}
-                  onValueChange={(value: "5vs5" | "6vs6" | "11vs11") =>
-                    setFormData({ ...formData, game_type: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="경기 유형을 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5vs5">5vs5</SelectItem>
-                    <SelectItem value="6vs6">6vs6</SelectItem>
-                    <SelectItem value="11vs11">11vs11</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>경기장</Label>
-                {stadiums && stadiums.length > 0 ? (
-                  <>
-                    <Select
-                      value={formData.venue}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, venue: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="경기장을 선택하세요" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stadiums.map((stadium) => (
-                          <SelectItem key={stadium.id} value={stadium.name}>
-                            {stadium.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => setIsAddingStadium(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      다른 경기장 등록
-                    </Button>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-500">
-                      등록된 경기장이 없습니다.
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsAddingStadium(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />새 경기장 등록
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">설명</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="경기에 대한 설명을 입력하세요"
-                />
-              </div>
-            </div>
-            <DialogFooter className="mt-4">
-              <Button type="submit">등록</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <StadiumRegistration
-        teamId={teamId}
-        open={isAddingStadium}
-        onOpenChange={setIsAddingStadium}
-        onSuccess={(stadium) => {
-          setIsAddingStadium(false);
-          setStadiums((prev) => [...prev, stadium]);
-          setFormData({ ...formData, venue: stadium.name });
-        }}
-      />
-
-      <div className="space-y-2">
-        {matches
-          .filter((match) => !match.is_finished)
-          .map((match) => (
-            <div
-              key={match.id}
-              className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-              onClick={() => router.push(`/matches/${match.id}`)}
-            >
-              <div className="text-sm text-gray-500">
-                {format(new Date(match.match_date), "PPP p", { locale: ko })}
-              </div>
-              <div className="font-medium">
-                {match.is_tbd
-                  ? "상대팀 미정"
-                  : match.opponent_team?.name ||
-                    match.opponent_guest_team?.name}
-              </div>
-              <div className="text-sm text-gray-500">{match.venue}</div>
-              <div className="text-sm text-gray-500">
-                {match.competition_type === "friendly"
-                  ? "친선전"
-                  : match.competition_type === "league"
-                  ? "리그"
-                  : "컵"}{" "}
-                · {match.game_type}
-              </div>
-              {match.description && (
-                <div className="text-sm text-gray-500 mt-2">
-                  {match.description}
-                </div>
-              )}
-            </div>
-          ))}
-        {matches.filter((match) => !match.is_finished).length === 0 && (
-          <div className="text-center text-gray-500 py-4">
-            예정된 경기 일정이 없습니다
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-40 w-full" />
+            ))}
+          </div>
+        ) : processedMatches.filter((match) => match.is_finished).length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {processedMatches
+              .filter((match) => match.is_finished)
+              .map((match) => (
+                <Link href={`/matches/${match.id}`} key={match.id}>
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex justify-between">
+                        <span>
+                          vs{" "}
+                          {match.is_tbd
+                            ? "상대팀 미정"
+                            : match.opponent_team?.name ||
+                              match.opponent_guest_team?.name}
+                        </span>
+                        <Badge variant={getStatusBadgeVariant(match.status)}>
+                          {getStatusText(match.status)}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-gray-500 mb-2">
+                        <CalendarDays className="w-4 h-4 inline-block mr-1" />
+                        {format(new Date(match.match_date), "PPP p", {
+                          locale: ko,
+                        })}
+                      </div>
+                      <div className="text-sm text-gray-500 mb-2">
+                        <MapPin className="w-4 h-4 inline-block mr-1" />
+                        {match.venue || "장소 미정"}
+                      </div>
+                      <div className="text-sm font-medium">
+                        결과: {match.home_score} - {match.away_score}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-6">
+            <CalendarCheck className="w-12 h-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-700 mb-2">
+              지난 경기가 없습니다
+            </h3>
+            <p className="text-gray-500 text-center">
+              경기가 완료되면 여기에 표시됩니다.
+            </p>
           </div>
         )}
       </div>

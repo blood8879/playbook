@@ -24,6 +24,10 @@ export function MatchTimeline({
   const [isLoading, setIsLoading] = useState(true);
   const [goalsWithProfiles, setGoalsWithProfiles] = useState<any[]>([]);
 
+  // 상대팀이 미정인지 확인
+  const isOpponentTeamUndecided =
+    !match?.opponent_team?.id || !match?.opponent_team?.name;
+
   // 직접 골 데이터를 가져옵니다 (profiles 조인 없이)
   const { data: matchGoals, isLoading: isGoalsLoading } = useQuery({
     queryKey: ["matchGoalsInTimeline", match?.id],
@@ -192,19 +196,21 @@ export function MatchTimeline({
 
         <div className="text-center">
           <div className="text-5xl font-bold mb-2">
-            {match.home_score} - {match.away_score}
+            {isOpponentTeamUndecided
+              ? "vs"
+              : `${match.home_score} - ${match.away_score}`}
           </div>
           <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            경기 종료
+            {match.status === "completed" ? "경기 종료" : "예정된 경기"}
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="text-lg font-semibold text-right">
-            {match.opponent_team?.name}
+            {isOpponentTeamUndecided ? "미정" : match.opponent_team?.name}
           </div>
           <div className="w-16 h-16 relative">
-            {match.opponent_team?.emblem_url ? (
+            {!isOpponentTeamUndecided && match.opponent_team?.emblem_url ? (
               <img
                 src={match.opponent_team.emblem_url}
                 alt={match.opponent_team.name}
@@ -212,7 +218,7 @@ export function MatchTimeline({
               />
             ) : (
               <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
-                {match.opponent_team?.name?.[0]}
+                {isOpponentTeamUndecided ? "?" : match.opponent_team?.name?.[0]}
               </div>
             )}
           </div>
@@ -247,18 +253,23 @@ export function MatchTimeline({
             </div>
           ) : (
             <div className="text-center text-sm text-gray-500 py-2">
-              득점 없음
+              {match.status === "completed" ? "득점 없음" : "경기 전"}
             </div>
           )}
         </div>
 
         <div className="bg-red-50 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-red-700 mb-3 text-center border-b border-red-100 pb-2">
-            {match.opponent_team?.name || "상대팀"} 득점자
+            {isOpponentTeamUndecided ? "상대팀" : match.opponent_team?.name}{" "}
+            득점자
           </h3>
           {isLoading || isGoalsLoading ? (
             <div className="text-center text-sm text-gray-500 py-2">
               로딩 중...
+            </div>
+          ) : isOpponentTeamUndecided ? (
+            <div className="text-center text-sm text-gray-500 py-2">
+              상대팀 미정
             </div>
           ) : awayTeamGoals.length > 0 ? (
             <div className="space-y-2.5">
