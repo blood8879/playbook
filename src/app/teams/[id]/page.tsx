@@ -15,7 +15,7 @@ import { TeamStadiums } from "@/features/teams/components/TeamStadiums";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, MapPin, Users, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Team } from "@/features/teams/types";
+import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
 import {
   getTeamMembers,
