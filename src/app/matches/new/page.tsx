@@ -50,6 +50,15 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import DaumPostcode from "react-daum-postcode";
 
+// 경기장 생성 폼 스키마
+const stadiumFormSchema = z.object({
+  name: z.string().min(1, "경기장 이름을 입력해주세요."),
+  address: z.string().min(1, "경기장 주소를 입력해주세요."),
+  description: z.string().optional(),
+});
+
+type StadiumFormValues = z.infer<typeof stadiumFormSchema>;
+
 // 경기 생성 폼 스키마
 const matchFormSchema = z
   .object({
@@ -327,8 +336,10 @@ export default function CreateMatchPage() {
           venue: data.venue,
           stadium_id: data.stadium_id || null,
           description: data.description || null,
-          competition_type: data.competition_type,
-          game_type: data.game_type,
+          // competition_type: data.competition_type,
+          // game_type: data.game_type,
+          competition_type: "friendly",
+          game_type: "11vs11",
         })
         .select()
         .single();
@@ -683,93 +694,97 @@ export default function CreateMatchPage() {
                 )}
 
                 {/* 경기장 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="stadium_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>등록된 경기장 선택 (선택사항)</FormLabel>
+                <FormField
+                  control={form.control}
+                  name="stadium_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>경기장 선택</FormLabel>
+                      <div className="flex gap-2">
                         <Select
                           onValueChange={(value) => {
                             field.onChange(value);
-                            if (value && value !== "none") {
+                            if (value) {
                               const selectedStadium = stadiums.find(
                                 (stadium) => stadium.id === value
                               );
                               if (selectedStadium) {
                                 form.setValue("venue", selectedStadium.address);
                               }
-                            } else {
-                              // 직접 입력 선택 시 필드 초기화
-                              form.setValue("venue", "");
                             }
                           }}
-                          value={field.value || "none"}
+                          value={field.value || ""}
                         >
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="등록된 경기장 선택" />
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="경기장을 선택하세요" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="none">직접 입력</SelectItem>
-                            {stadiums.map((stadium) => (
-                              <SelectItem key={stadium.id} value={stadium.id}>
-                                {stadium.name}
-                              </SelectItem>
-                            ))}
+                            {stadiums.length > 0 ? (
+                              stadiums.map((stadium) => (
+                                <SelectItem key={stadium.id} value={stadium.id}>
+                                  {stadium.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="p-2 text-center text-sm text-muted-foreground">
+                                등록된 경기장이 없습니다
+                              </div>
+                            )}
                           </SelectContent>
                         </Select>
-                        <FormDescription>
-                          등록된 경기장을 선택하거나 새로운 경기장 정보를
-                          입력하세요.
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsAddingStadium(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          경기장 등록
+                        </Button>
+                      </div>
+                      {stadiums.length === 0 && (
+                        <FormDescription className="text-yellow-600">
+                          등록된 경기장이 없습니다. 경기장을 등록해주세요.
                         </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
+                {/* 경기장 주소 (숨겨진 필드) */}
+                <div className="hidden">
                   <FormField
                     control={form.control}
                     name="venue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>경기장 주소</FormLabel>
-                        <div className="flex gap-2">
-                          <FormControl>
-                            <Input
-                              placeholder="경기장 이름 또는 주소"
-                              {...field}
-                            />
-                          </FormControl>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setIsAddressDialogOpen(true)}
-                          >
-                            <Search className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <FormMessage />
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
                       </FormItem>
                     )}
                   />
                 </div>
 
-                {/* 주소 검색 다이얼로그 */}
-                <AddressSearchDialog
-                  isOpen={isAddressDialogOpen}
-                  onClose={() => setIsAddressDialogOpen(false)}
-                  onSelect={(address) => {
-                    form.setValue("venue", address);
-                    toast({
-                      title: "주소가 선택되었습니다.",
-                      description: address,
-                    });
-                  }}
-                />
+                {/* 경기장 생성 다이얼로그 */}
+                {selectedTeamId && (
+                  <StadiumCreationDialog
+                    isOpen={isAddingStadium}
+                    onClose={() => setIsAddingStadium(false)}
+                    onSave={(stadium) => {
+                      setStadiums((prev) => [...prev, stadium]);
+                      form.setValue("stadium_id", stadium.id);
+                      form.setValue("venue", stadium.address);
+                      toast({
+                        title: "경기장이 추가되었습니다.",
+                        description: `${stadium.name}이(가) 경기장 목록에 추가되었습니다.`,
+                      });
+                    }}
+                    teamId={selectedTeamId}
+                  />
+                )}
 
                 {/* 경기 설명 */}
                 <FormField
@@ -790,7 +805,7 @@ export default function CreateMatchPage() {
                 />
 
                 {/* 경기 유형 */}
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="competition_type"
                   render={({ field }) => (
@@ -814,10 +829,10 @@ export default function CreateMatchPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* 경기 방식 */}
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="game_type"
                   render={({ field }) => (
@@ -841,7 +856,7 @@ export default function CreateMatchPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* 제출 버튼 */}
                 <Button
@@ -899,5 +914,177 @@ function AddressSearchDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// 경기장 생성 다이얼로그 컴포넌트
+function StadiumCreationDialog({
+  isOpen,
+  onClose,
+  onSave,
+  teamId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (stadium: any) => void;
+  teamId: string;
+}) {
+  const { supabase } = useSupabase();
+  const { toast } = useToast();
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<StadiumFormValues>({
+    resolver: zodResolver(stadiumFormSchema),
+    defaultValues: {
+      name: "",
+      address: "",
+      description: "",
+    },
+  });
+
+  const handleSubmit = async (values: StadiumFormValues) => {
+    if (!teamId) {
+      toast({
+        title: "오류",
+        description: "팀 정보가 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase
+        .from("stadiums")
+        .insert({
+          name: values.name,
+          address: values.address,
+          description: values.description,
+          team_id: teamId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "경기장 등록 완료",
+        description: "새로운 경기장이 성공적으로 등록되었습니다.",
+      });
+
+      onSave(data);
+      onClose();
+      form.reset();
+    } catch (error: any) {
+      toast({
+        title: "경기장 등록 실패",
+        description:
+          error.message || "경기장을 등록하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>새 경기장 등록</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>경기장 이름</FormLabel>
+                    <FormControl>
+                      <Input placeholder="경기장 이름" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>경기장 주소</FormLabel>
+                    <div className="flex gap-2">
+                      <FormControl>
+                        <Input placeholder="경기장 주소" {...field} readOnly />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setIsAddressDialogOpen(true)}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <FormDescription>
+                      주소 검색 버튼을 클릭하여 경기장 주소를 입력하세요.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>경기장 설명 (선택사항)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="경기장에 대한 추가 정보"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={onClose}>
+                  취소
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      처리 중...
+                    </>
+                  ) : (
+                    "경기장 등록"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AddressSearchDialog
+        isOpen={isAddressDialogOpen}
+        onClose={() => setIsAddressDialogOpen(false)}
+        onSelect={(address) => {
+          form.setValue("address", address);
+        }}
+      />
+    </>
   );
 }
