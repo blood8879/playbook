@@ -24,6 +24,7 @@ import {
   Shield,
   Trophy,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -216,71 +217,146 @@ export default function MatchDetailPage() {
   const { data: goals } = useQuery({
     queryKey: ["matchGoals", matchId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("match_goals")
-        .select(
-          `
-          *,
-          profiles (
-            id,
-            name,
-            email
-          )
-        `
-        )
-        .eq("match_id", matchId)
-        .order("created_at", { ascending: true });
+      console.log("골 정보 조회 시작:", matchId);
+      try {
+        const { data, error } = await supabase
+          .from("match_goals")
+          .select("*")
+          .eq("match_id", matchId)
+          .order("created_at", { ascending: true });
 
-      return data;
+        console.log("골 정보 조회 결과:", data);
+        console.log("골 정보 조회 오류:", error);
+
+        if (error) {
+          console.error("골 정보 조회 중 오류 발생:", error);
+          return [];
+        }
+
+        // 골 데이터가 있으면 프로필 정보 조회
+        if (data && data.length > 0) {
+          const userIds = [...new Set(data.map((goal) => goal.user_id))];
+
+          const { data: profiles, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, name, email")
+            .in("id", userIds);
+
+          if (profileError) {
+            console.error("프로필 정보 조회 오류:", profileError);
+            return data;
+          }
+
+          // 골 데이터에 프로필 정보 추가
+          return data.map((goal) => {
+            const profile = profiles.find((p) => p.id === goal.user_id);
+            return {
+              ...goal,
+              profiles: profile,
+            };
+          });
+        }
+
+        return data || [];
+      } catch (error) {
+        console.error("골 정보 조회 중 예외 발생:", error);
+        return [];
+      }
     },
-    enabled: !!matchId && matchData?.is_finished,
+    enabled: !!matchId, // 경기 ID만 있으면 조회 가능하도록 수정
   });
 
   // 어시스트 정보 조회
   const { data: assists } = useQuery({
     queryKey: ["matchAssists", matchId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("match_assists")
-        .select(
-          `
-          *,
-          profiles (
-            id,
-            name,
-            email
-          )
-        `
-        )
-        .eq("match_id", matchId);
+      try {
+        const { data, error } = await supabase
+          .from("match_assists")
+          .select("*")
+          .eq("match_id", matchId);
 
-      return data;
+        if (error) {
+          console.error("어시스트 정보 조회 중 오류 발생:", error);
+          return [];
+        }
+
+        // 어시스트 데이터가 있으면 프로필 정보 조회
+        if (data && data.length > 0) {
+          const userIds = [...new Set(data.map((assist) => assist.user_id))];
+
+          const { data: profiles, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, name, email")
+            .in("id", userIds);
+
+          if (profileError) {
+            console.error("프로필 정보 조회 오류:", profileError);
+            return data;
+          }
+
+          // 어시스트 데이터에 프로필 정보 추가
+          return data.map((assist) => {
+            const profile = profiles.find((p) => p.id === assist.user_id);
+            return {
+              ...assist,
+              profiles: profile,
+            };
+          });
+        }
+
+        return data || [];
+      } catch (error) {
+        console.error("어시스트 정보 조회 중 예외 발생:", error);
+        return [];
+      }
     },
-    enabled: !!matchId && matchData?.is_finished,
+    enabled: !!matchId, // 경기 ID만 있으면 조회 가능하도록 수정
   });
 
   // MOM 정보 조회
   const { data: mom } = useQuery({
     queryKey: ["matchMom", matchId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("match_mom")
-        .select(
-          `
-          *,
-          profiles (
-            id,
-            name,
-            email
-          )
-        `
-        )
-        .eq("match_id", matchId)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("match_mom")
+          .select("*")
+          .eq("match_id", matchId)
+          .maybeSingle(); // single() 대신 maybeSingle() 사용
 
-      return data;
+        if (error) {
+          console.error("MOM 정보 조회 중 오류 발생:", error);
+          return null;
+        }
+
+        // MOM 데이터가 있으면 프로필 정보 조회
+        if (data) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, name, email")
+            .eq("id", data.user_id)
+            .single();
+
+          if (profileError) {
+            console.error("프로필 정보 조회 오류:", profileError);
+            return data;
+          }
+
+          // MOM 데이터에 프로필 정보 추가
+          return {
+            ...data,
+            profiles: profile,
+          };
+        }
+
+        return data;
+      } catch (error) {
+        console.error("MOM 정보 조회 중 예외 발생:", error);
+        return null;
+      }
     },
-    enabled: !!matchId && matchData?.is_finished,
+    enabled: !!matchId, // 경기 ID만 있으면 조회 가능하도록 수정
   });
 
   // 팀 멤버권한 확인
@@ -299,8 +375,6 @@ export default function MatchDetailPage() {
   });
 
   const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
-
-  console.log("isAdmin", isAdmin);
 
   const getMatchResult = (match: any, teamId: string) => {
     if (match.team_id === teamId) {
@@ -933,10 +1007,27 @@ export default function MatchDetailPage() {
         {/* 참석 버튼 */}
         <div className="space-y-2 mt-6">
           <p className="text-sm text-gray-600 mb-3">나의 참석 여부</p>
+          {matchData.is_finished ? (
+            <div className="bg-blue-50 p-4 rounded-lg mb-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-blue-100 rounded-full p-1 mt-0.5">
+                  <Info className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">
+                    경기가 종료되었습니다
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    종료된 경기는 참석 상태를 변경할 수 없습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <Button
               variant={userAttendance === "attending" ? "default" : "outline"}
-              disabled={isUpdating}
+              disabled={isUpdating || matchData.is_finished}
               onClick={() => handleAttendanceChange("attending")}
               className="flex-1"
             >
@@ -945,7 +1036,7 @@ export default function MatchDetailPage() {
             </Button>
             <Button
               variant={userAttendance === "absent" ? "default" : "outline"}
-              disabled={isUpdating}
+              disabled={isUpdating || matchData.is_finished}
               onClick={() => handleAttendanceChange("absent")}
               className="flex-1"
             >
@@ -954,7 +1045,7 @@ export default function MatchDetailPage() {
             </Button>
             <Button
               variant={userAttendance === "maybe" ? "default" : "outline"}
-              disabled={isUpdating}
+              disabled={isUpdating || matchData.is_finished}
               onClick={() => handleAttendanceChange("maybe")}
               className="flex-1"
             >
