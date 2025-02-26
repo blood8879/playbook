@@ -6,14 +6,18 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { TeamMatch } from "../types";
 
-export async function getAllMatchesForTeam(supabase: SupabaseClient, teamId: string): Promise<TeamMatch[]> {
+export async function getAllMatchesForTeam(
+  supabase: SupabaseClient,
+  teamId: string
+): Promise<TeamMatch[]> {
   const { data, error } = await supabase
     .from("matches")
     .select(
       `
         *,
         opponent_team:teams!matches_opponent_team_id_fkey(*),
-        opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(*)
+        opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(*),
+        stadium:stadiums(*)
       `
     )
     .eq("team_id", teamId)

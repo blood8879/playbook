@@ -68,6 +68,8 @@ export function TeamMatches({
 }: TeamMatchesProps) {
   const router = useRouter();
 
+  console.log("matches", matches);
+
   // 경기 상태 및 참가자 수 계산
   const processedMatches = matches.map((match) => {
     // 경기 상태 계산
@@ -132,7 +134,7 @@ export function TeamMatches({
                 <CardContent>
                   <div className="flex items-center text-sm text-gray-500 mb-2">
                     <MapPin className="w-4 h-4 mr-1" />
-                    {match.venue}
+                    {match.stadium?.name} ({match.venue})
                   </div>
                   <div className="flex items-center text-sm text-gray-500">
                     <Users className="w-4 h-4 mr-1" />

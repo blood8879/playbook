@@ -217,7 +217,7 @@ export default function CreateMatchPage() {
       );
 
       try {
-        // 경기장 정보 조회
+        // 경기장 정보 조회 - 우리 팀의 경기장만 조회
         const { data: stadiumData, error: stadiumError } = await supabase
           .from("stadiums")
           .select("*")
@@ -246,41 +246,80 @@ export default function CreateMatchPage() {
     fetchTeamData();
   }, [userTeams, supabase, selectedTeamId]);
 
-  // 상대팀 선택 시 해당 팀의 경기장 정보 조회
+  // 상대팀 선택 시 해당 팀의 경기장 정보 조회 (등록된 팀인 경우에만)
   useEffect(() => {
-    const fetchOpponentTeamData = async (teamId: string) => {
+    const fetchOpponentTeamStadiums = async () => {
+      const opponentType = form.watch("opponent_type");
+      const opponentTeamId = form.watch("opponent_team_id");
+      const homeTeamId = selectedTeamId || (userTeams && userTeams[0]?.team_id);
+
+      if (!homeTeamId) return;
+
       try {
-        // 경기장 정보 조회
-        const { data: stadiumData, error: stadiumError } = await supabase
+        const stadiumQuery = supabase
           .from("stadiums")
           .select("*")
-          .eq("team_id", teamId)
+          .eq("team_id", homeTeamId)
           .order("name");
 
-        if (!stadiumError && stadiumData) {
-          setStadiums(stadiumData);
-        }
+        // 등록된 상대팀인 경우, 상대팀의 경기장도 함께 조회
+        if (opponentType === "registered" && opponentTeamId) {
+          const { data: opponentStadiums, error: opponentError } =
+            await supabase
+              .from("stadiums")
+              .select("*")
+              .eq("team_id", opponentTeamId)
+              .order("name");
 
-        // 게스트팀 정보 조회
-        const { data: guestData, error: guestError } = await supabase
-          .from("guest_clubs")
-          .select("*")
-          .eq("team_id", teamId)
-          .order("name");
+          if (!opponentError && opponentStadiums) {
+            // 우리 팀 경기장 조회
+            const { data: homeStadiums, error: homeError } = await stadiumQuery;
 
-        if (!guestError && guestData) {
-          setGuestClubs(guestData);
+            if (!homeError && homeStadiums) {
+              // 두 팀의 경기장을 합쳐서 설정
+              setStadiums([
+                ...homeStadiums.map((stadium) => ({
+                  ...stadium,
+                  team_name:
+                    teams.find((t) => t.id === homeTeamId)?.name || "우리 팀",
+                })),
+                ...opponentStadiums.map((stadium) => ({
+                  ...stadium,
+                  team_name:
+                    otherTeams?.find((t) => t.id === opponentTeamId)?.name ||
+                    "상대 팀",
+                })),
+              ]);
+            }
+          }
+        } else {
+          // 게스트팀이거나 미정인 경우, 우리 팀 경기장만 조회
+          const { data: homeStadiums, error: homeError } = await stadiumQuery;
+
+          if (!homeError && homeStadiums) {
+            setStadiums(
+              homeStadiums.map((stadium) => ({
+                ...stadium,
+                team_name:
+                  teams.find((t) => t.id === homeTeamId)?.name || "우리 팀",
+              }))
+            );
+          }
         }
       } catch (err) {
-        console.error(err);
+        console.error("경기장 정보 조회 오류:", err);
       }
     };
 
-    const selectedTeamId = form.watch("opponent_team_id");
-    if (selectedTeamId) {
-      fetchOpponentTeamData(selectedTeamId);
-    }
-  }, [form.watch("opponent_team_id"), supabase]);
+    fetchOpponentTeamStadiums();
+  }, [
+    form.watch("opponent_type"),
+    form.watch("opponent_team_id"),
+    selectedTeamId,
+    supabase,
+    teams,
+    otherTeams,
+  ]);
 
   // 경기 생성 뮤테이션
   const createMatchMutation = useMutation({
@@ -889,7 +928,6 @@ export default function CreateMatchPage() {
                                 form.setValue("venue", selectedStadium.address);
                               }
                             } else {
-                              // 직접 입력 선택 시 필드 초기화
                               form.setValue("venue", "");
                             }
                           }}
@@ -906,7 +944,7 @@ export default function CreateMatchPage() {
                             {stadiums.length > 0 ? (
                               stadiums.map((stadium) => (
                                 <SelectItem key={stadium.id} value={stadium.id}>
-                                  {stadium.name}
+                                  {stadium.name} ({stadium.team_name})
                                 </SelectItem>
                               ))
                             ) : (

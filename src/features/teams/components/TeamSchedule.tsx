@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TeamMatch } from "../types";
+import { TeamMatch } from "../types/index";
 import Link from "next/link";
 
 interface TeamScheduleProps {
@@ -58,7 +58,9 @@ export function TeamSchedule({
                 ? "상대팀 미정"
                 : match.opponent_team?.name || match.opponent_guest_team?.name}
             </div>
-            <div className="text-sm text-gray-500">{match.venue}</div>
+            <div className="text-sm text-gray-500">
+              {match.stadium?.name || match.venue}
+            </div>
             <div className="text-sm text-gray-500">
               {match.competition_type === "friendly"
                 ? "친선전"

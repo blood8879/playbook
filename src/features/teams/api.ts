@@ -437,7 +437,8 @@ export async function getMatchById(
       *,
       team:teams!matches_team_id_fkey(*),
       opponent_team:teams!matches_opponent_team_id_fkey(*),
-      opponent_guest_team:guest_clubs(*)
+      opponent_guest_team:guest_clubs(*),
+      stadium:stadiums(*)
     `
     )
     .eq("id", matchId)

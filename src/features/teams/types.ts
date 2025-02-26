@@ -1,3 +1,15 @@
+export interface Team {
+  id: string;
+  name: string;
+  description: string | null;
+  emblem_url: string | null;
+  leader_id: string;
+  created_at: string;
+  updated_at: string;
+  city: string;
+  gu: string;
+}
+
 export interface TeamMatch {
   id: string;
   team_id: string;
@@ -7,8 +19,8 @@ export interface TeamMatch {
   is_tbd: boolean;
   venue: string;
   description: string | null;
-  competition_type: string;
-  game_type: string;
+  competition_type: "friendly" | "league" | "cup";
+  game_type: "5vs5" | "6vs6" | "11vs11";
   home_score: number | null;
   away_score: number | null;
   is_finished: boolean;
@@ -19,6 +31,16 @@ export interface TeamMatch {
   opponent_guest_team?: {
     id: string;
     name: string;
+    description: string | null;
+    emblem_url: string | null;
+    team_id: string;
+    created_at: string;
+  };
+  stadium?: {
+    id: string;
+    name: string;
+    address: string;
+    team_id: string;
     description: string | null;
   };
   status: string;

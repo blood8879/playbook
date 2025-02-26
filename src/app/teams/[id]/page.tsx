@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { getTeamById, getMatchById } from "@/features/teams/api";
 import { useSupabase } from "@/lib/supabase/client";
-import { TeamDetail } from "@/features/teams/components/TeamDetail";
 import { TeamDetailSkeleton } from "@/features/teams/components/TeamDetailSkeleton";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -17,11 +15,7 @@ import { Calendar, MapPin, Users, Shield, Plus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
-import {
-  getTeamMembers,
-  getTeamById as fetchTeamById,
-  searchTeams,
-} from "@/features/teams/api";
+import { getTeamById as fetchTeamById } from "@/features/teams/api";
 import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
 import { TeamMatchResults } from "@/features/teams/components/TeamMatchResults";
 

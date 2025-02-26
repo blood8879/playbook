@@ -13,7 +13,7 @@ import {
   getLastMatchesBetweenTeams,
   getLastMatchesOfTeam,
 } from "@/features/teams/api";
-import { TeamMatch } from "@/features/teams/types";
+import { TeamMatch } from "@/features/teams/types/index";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -27,6 +27,7 @@ import {
   Info,
   Edit,
   AlertTriangle,
+  MapPin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -697,6 +698,16 @@ export default function MatchDetailPage() {
               <Shield className="w-6 h-6" />
             )}
           </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <MapPin className="w-4 h-4" />
+          {matchData.stadium?.name ? (
+            <>
+              {matchData.stadium.name} · {matchData.venue}
+            </>
+          ) : (
+            matchData.venue
+          )}
         </div>
       </div>
       {/* 운영진에게만 결과 수정 버튼 표시 */}

@@ -132,6 +132,12 @@ export interface MatchAttendance {
   user_id: string;
   status: "attending" | "absent" | "maybe";
   created_at: string;
+  profiles?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
+  };
 }
 
 export interface RecentMatch {
