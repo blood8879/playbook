@@ -114,7 +114,7 @@ export default function CreateSchedulePage() {
     defaultValues: {
       team_id: teamId || "",
       venue: "",
-      stadium_id: "",
+      stadium_id: "none",
       competition_type: "friendly",
       game_type: "11vs11",
       description: "",
@@ -396,6 +396,7 @@ export default function CreateSchedulePage() {
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -426,16 +427,20 @@ export default function CreateSchedulePage() {
                         <Select
                           onValueChange={(value) => {
                             field.onChange(value);
-                            if (value) {
+                            if (value && value !== "none") {
                               const selectedStadium = stadiums.find(
                                 (stadium) => stadium.id === value
                               );
                               if (selectedStadium) {
                                 form.setValue("venue", selectedStadium.address);
                               }
+                            } else {
+                              // 직접 입력 선택 시 필드 초기화
+                              form.setValue("venue", "");
                             }
                           }}
-                          value={field.value || ""}
+                          defaultValue="none"
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -443,6 +448,7 @@ export default function CreateSchedulePage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
+                            <SelectItem value="none">직접 입력</SelectItem>
                             {stadiums.length > 0 ? (
                               stadiums.map((stadium) => (
                                 <SelectItem key={stadium.id} value={stadium.id}>

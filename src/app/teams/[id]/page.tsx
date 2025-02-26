@@ -13,7 +13,7 @@ import { TeamManagement } from "@/features/teams/components/TeamManagement";
 import { TeamSchedule } from "@/features/teams/components/TeamSchedule";
 import { TeamStadiums } from "@/features/teams/components/TeamStadiums";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, Shield } from "lucide-react";
+import { Calendar, MapPin, Users, Shield, Plus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
@@ -149,6 +149,17 @@ export default function TeamDetailPage() {
             </TabsList>
 
             <TabsContent value="schedule">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">경기 일정</h2>
+                {canManageMatches && (
+                  <Button
+                    onClick={() => router.push(`/matches/new?team=${teamId}`)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    경기 생성
+                  </Button>
+                )}
+              </div>
               <TeamMatches
                 matches={matches || []}
                 isLoading={isMatchesLoading}

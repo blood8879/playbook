@@ -49,7 +49,7 @@ export function TeamSchedule({
     <div className="space-y-2">
       {filteredMatches.map((match) => (
         <Link href={`/matches/${match.id}`} key={match.id}>
-          <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer mb-2">
             <div className="text-sm text-gray-500">
               {format(new Date(match.match_date), "PPP p", { locale: ko })}
             </div>

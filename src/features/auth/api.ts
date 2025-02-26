@@ -8,6 +8,7 @@ export async function signupWithEmail(data: SignupFormInputs) {
     options: {
       data: {
         name: data.name,
+        user_name: data.name,
       },
     },
   });

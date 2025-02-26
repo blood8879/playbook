@@ -23,8 +23,8 @@ BEGIN
   RETURNING * INTO new_team;
 
   -- team_members 테이블 insert
-  INSERT INTO team_members (team_id, user_id, role, status)
-  VALUES (new_team.id, member_user_id, 'owner', 'active');
+  INSERT INTO team_members (team_id, user_id, role)
+  VALUES (new_team.id, member_user_id, 'owner');
 
   RETURN new_team;
 END;

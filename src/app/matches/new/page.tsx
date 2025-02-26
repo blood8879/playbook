@@ -65,6 +65,9 @@ const matchFormSchema = z
     match_date: z.date({
       required_error: "경기 날짜를 선택해주세요.",
     }),
+    match_time: z.string({
+      required_error: "경기 시간을 선택해주세요.",
+    }),
     registration_deadline: z.date({
       required_error: "참가 신청 마감일을 선택해주세요.",
     }),
@@ -84,6 +87,7 @@ const matchFormSchema = z
     game_type: z.enum(["5vs5", "6vs6", "11vs11"], {
       required_error: "경기 방식을 선택해주세요.",
     }),
+    team_id: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -107,7 +111,9 @@ export default function CreateMatchPage() {
   const router = useRouter();
   const { supabase, user } = useSupabase();
   const queryClient = useQueryClient();
-  const [teams, setTeams] = useState<any[]>([]);
+  const [teams, setTeams] = useState<
+    { id: string; name: string; role: string }[]
+  >([]);
   const [stadiums, setStadiums] = useState<any[]>([]);
   const [guestClubs, setGuestClubs] = useState<any[]>([]);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
@@ -133,14 +139,17 @@ export default function CreateMatchPage() {
     resolver: zodResolver(matchFormSchema),
     defaultValues: {
       match_date: new Date(),
+      match_time: "12:00",
       registration_deadline: new Date(),
       opponent_type: "tbd",
       venue: "",
-      guest_club_id: "",
-      stadium_id: "",
+      guest_club_id: "none",
+      stadium_id: "none",
       description: "",
       competition_type: "friendly",
       game_type: "5vs5",
+      opponent_guest_team_name: "",
+      opponent_guest_team_description: "",
     },
   });
 
@@ -197,6 +206,15 @@ export default function CreateMatchPage() {
 
       // URL 파라미터로 전달된 팀 ID가 있으면 해당 팀 사용, 없으면 첫 번째 팀 사용
       const teamId = selectedTeamId || userTeams[0].team_id;
+
+      // 팀 정보 설정
+      setTeams(
+        userTeams.map((team) => ({
+          id: team.team_id,
+          name: (team.teams as any)?.name,
+          role: team.role,
+        }))
+      );
 
       try {
         // 경기장 정보 조회
@@ -267,13 +285,20 @@ export default function CreateMatchPage() {
   // 경기 생성 뮤테이션
   const createMatchMutation = useMutation({
     mutationFn: async (data: MatchFormValues) => {
+      console.log("mutationFn 시작", data);
+      // 필수 날짜 필드 확인
+      if (!data.match_date || !data.registration_deadline) {
+        throw new Error("경기 날짜와 참가 신청 마감일을 모두 선택해주세요.");
+      }
+
       // 선택된 팀 ID 가져오기
       if (!userTeams || userTeams.length === 0) {
         throw new Error("팀을 선택해주세요.");
       }
 
       // URL 파라미터로 전달된 팀 ID가 있으면 해당 팀 사용, 없으면 첫 번째 팀 사용
-      const teamId = selectedTeamId || userTeams[0].team_id;
+      const teamId = data.team_id || selectedTeamId || userTeams[0].team_id;
+      console.log("사용할 팀 ID:", teamId);
 
       // 사용자가 해당 팀의 관리자인지 확인
       const isTeamAdmin = userTeams.some(
@@ -281,9 +306,12 @@ export default function CreateMatchPage() {
           team.team_id === teamId &&
           ["leader", "owner", "admin"].includes(team.role)
       );
+      console.log("팀 관리자 여부:", isTeamAdmin);
 
       if (!isTeamAdmin) {
-        throw new Error("해당 팀의 관리자만 경기를 생성할 수 있습니다.");
+        throw new Error(
+          "해당 팀의 관리자, 소유자 또는 리더만 경기를 생성할 수 있습니다."
+        );
       }
 
       let opponent_guest_team_id = null;
@@ -323,18 +351,42 @@ export default function CreateMatchPage() {
       }
 
       // 경기 생성
+      console.log("경기 생성 시작", {
+        team_id: teamId,
+        match_date: format(data.match_date, "yyyy-MM-dd"),
+        match_time: data.match_time,
+        registration_deadline: format(data.registration_deadline, "yyyy-MM-dd"),
+        opponent_team_id:
+          data.opponent_type === "registered" ? data.opponent_team_id : null,
+        opponent_guest_team_id,
+        is_tbd: data.opponent_type === "tbd",
+        venue: data.venue,
+        stadium_id: data.stadium_id === "none" ? null : data.stadium_id,
+        description: data.description || null,
+        competition_type: "friendly",
+        game_type: "11vs11",
+      });
+
+      // match_date와 match_time을 결합하여 하나의 timestamp로 변환
+      const [hours, minutes] = data.match_time.split(":").map(Number);
+      const matchDateTime = new Date(data.match_date);
+      matchDateTime.setHours(hours, minutes, 0, 0);
+
       const { data: match, error } = await supabase
         .from("matches")
         .insert({
           team_id: teamId,
-          match_date: data.match_date.toISOString(),
-          registration_deadline: data.registration_deadline.toISOString(),
+          match_date: matchDateTime.toISOString(),
+          registration_deadline: format(
+            data.registration_deadline,
+            "yyyy-MM-dd"
+          ),
           opponent_team_id:
             data.opponent_type === "registered" ? data.opponent_team_id : null,
           opponent_guest_team_id,
           is_tbd: data.opponent_type === "tbd",
           venue: data.venue,
-          stadium_id: data.stadium_id || null,
+          stadium_id: data.stadium_id === "none" ? null : data.stadium_id,
           description: data.description || null,
           // competition_type: data.competition_type,
           // game_type: data.game_type,
@@ -344,7 +396,12 @@ export default function CreateMatchPage() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("경기 생성 오류:", error);
+        throw error;
+      }
+
+      console.log("경기 생성 성공:", match);
 
       // 홈팀 멤버 조회
       const { data: homeTeamMembers, error: homeError } = await supabase
@@ -383,9 +440,9 @@ export default function CreateMatchPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["matches"] });
 
-      // 팀 ID가 있으면 해당 팀의 매치 목록으로 리다이렉트, 없으면 경기 상세 페이지로 이동
+      // 팀 ID가 있으면 해당 팀의 상세 페이지로 리다이렉트, 없으면 경기 상세 페이지로 이동
       if (selectedTeamId) {
-        router.push(`/teams/${selectedTeamId}/matches`);
+        router.push(`/teams/${selectedTeamId}`);
         toast({
           title: "경기 일정 생성 완료",
           description: "새로운 경기 일정이 성공적으로 생성되었습니다.",
@@ -394,11 +451,89 @@ export default function CreateMatchPage() {
         router.push(`/matches/${data.id}`);
       }
     },
+    onError: (error) => {
+      console.error("경기 생성 오류:", error);
+      toast({
+        title: "경기 생성 실패",
+        description:
+          error instanceof Error
+            ? error.message
+            : "알 수 없는 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    },
   });
 
   // 폼 제출 처리
   const onSubmit = (values: MatchFormValues) => {
-    createMatchMutation.mutate(values);
+    console.log("onSubmit");
+    console.log("values", values);
+    if (!values.stadium_id || values.stadium_id === "none") {
+      toast({
+        title: "경기장 정보 오류",
+        description: "경기장을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // 필수 날짜 필드 확인
+    if (!values.match_date || !values.registration_deadline) {
+      toast({
+        title: "필수 정보 누락",
+        description: "경기 날짜와 참가 신청 마감일을 모두 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 팀 ID 확인
+    const teamId = selectedTeamId || (teams.length > 0 ? teams[0].id : null);
+    if (!teamId) {
+      toast({
+        title: "팀 정보 오류",
+        description:
+          "소속된 팀이 없습니다. 팀에 가입한 후 경기를 생성해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 사용자가 선택한 팀의 관리자인지 확인
+    const selectedTeam = teams.find((team) => team.id === teamId);
+    if (
+      !selectedTeam ||
+      !["admin", "owner", "leader"].includes(selectedTeam.role)
+    ) {
+      toast({
+        title: "권한 오류",
+        description:
+          "경기를 생성할 권한이 없습니다. 팀 관리자, 소유자 또는 리더만 경기를 생성할 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 경기 생성 뮤테이션 실행
+    try {
+      console.log("경기 생성 뮤테이션 실행:", {
+        ...values,
+        team_id: teamId,
+      });
+      createMatchMutation.mutate({
+        ...values,
+        team_id: teamId,
+      });
+    } catch (error) {
+      console.error("경기 생성 중 오류 발생:", error);
+      toast({
+        title: "경기 생성 실패",
+        description:
+          error instanceof Error
+            ? error.message
+            : "알 수 없는 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    }
   };
 
   // 사용자가 팀 리더/소유자/관리자가 아닌 경우
@@ -476,6 +611,46 @@ export default function CreateMatchPage() {
                           />
                         </PopoverContent>
                       </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* 경기 시간 */}
+                <FormField
+                  control={form.control}
+                  name="match_time"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>경기 시간</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="시간 선택" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Array.from({ length: 24 }).map((_, hour) =>
+                            [0, 30].map((minute) => (
+                              <SelectItem
+                                key={`${hour}:${minute}`}
+                                value={`${hour
+                                  .toString()
+                                  .padStart(2, "0")}:${minute
+                                  .toString()
+                                  .padStart(2, "0")}`}
+                              >
+                                {`${hour.toString().padStart(2, "0")}:${minute
+                                  .toString()
+                                  .padStart(2, "0")}`}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -574,6 +749,7 @@ export default function CreateMatchPage() {
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -619,7 +795,7 @@ export default function CreateMatchPage() {
                                 if (selectedClub) {
                                   form.setValue(
                                     "opponent_guest_team_name",
-                                    selectedClub.name
+                                    selectedClub.name || ""
                                   );
                                   form.setValue(
                                     "opponent_guest_team_description",
@@ -635,7 +811,8 @@ export default function CreateMatchPage() {
                                 );
                               }
                             }}
-                            value={field.value || "none"}
+                            defaultValue="none"
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -704,16 +881,20 @@ export default function CreateMatchPage() {
                         <Select
                           onValueChange={(value) => {
                             field.onChange(value);
-                            if (value) {
+                            if (value && value !== "none") {
                               const selectedStadium = stadiums.find(
                                 (stadium) => stadium.id === value
                               );
                               if (selectedStadium) {
                                 form.setValue("venue", selectedStadium.address);
                               }
+                            } else {
+                              // 직접 입력 선택 시 필드 초기화
+                              form.setValue("venue", "");
                             }
                           }}
-                          value={field.value || ""}
+                          defaultValue="none"
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -721,6 +902,7 @@ export default function CreateMatchPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
+                            <SelectItem value="none">직접 입력</SelectItem>
                             {stadiums.length > 0 ? (
                               stadiums.map((stadium) => (
                                 <SelectItem key={stadium.id} value={stadium.id}>
@@ -879,41 +1061,6 @@ export default function CreateMatchPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// 주소 검색 다이얼로그 컴포넌트
-function AddressSearchDialog({
-  isOpen,
-  onClose,
-  onSelect,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (address: string) => void;
-}) {
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>주소 검색</DialogTitle>
-        </DialogHeader>
-        <div className="py-4">
-          <DaumPostcode
-            onComplete={(data) => {
-              onSelect(data.address);
-              onClose();
-            }}
-            style={{ height: 400 }}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            취소
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1086,5 +1233,40 @@ function StadiumCreationDialog({
         }}
       />
     </>
+  );
+}
+
+// 주소 검색 다이얼로그 컴포넌트
+function AddressSearchDialog({
+  isOpen,
+  onClose,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (address: string) => void;
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>주소 검색</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <DaumPostcode
+            onComplete={(data) => {
+              onSelect(data.address);
+              onClose();
+            }}
+            style={{ height: 400 }}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            취소
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -5,7 +5,7 @@ import {
   TeamInvitation,
   TeamMatch,
   HeadToHeadStats,
-} from "./types";
+} from "./types/index";
 import { TeamMemberRole, TeamMemberStatus } from "./types/index";
 
 /**
@@ -21,40 +21,81 @@ export async function createTeam(
 ) {
   let emblem_url = null;
 
-  if (emblemFile) {
-    const fileExt = emblemFile.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-    const filePath = `team-emblems/${fileName}`;
+  try {
+    // 사용자가 존재하는지 확인
+    const { data: userExists, error: userError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .single();
 
-    const { error: uploadError } = await supabase.storage
-      .from("teams")
-      .upload(filePath, emblemFile);
-
-    if (uploadError) throw uploadError;
-
-    const { data: urlData } = supabase.storage
-      .from("teams")
-      .getPublicUrl(filePath);
-
-    emblem_url = urlData.publicUrl;
-  }
-
-  const { data: team, error: createError } = await supabase.rpc(
-    "create_team_with_member",
-    {
-      team_name: data.name,
-      team_description: data.description,
-      team_emblem_url: emblem_url,
-      team_city: data.city,
-      team_gu: data.gu,
-      team_leader_id: userId,
-      member_user_id: userId,
+    if (userError) {
+      console.error("사용자 확인 오류:", userError);
+      throw new Error(`사용자 확인 실패: ${userError.message}`);
     }
-  );
 
-  if (createError) throw createError;
+    if (!userExists) {
+      throw new Error(
+        "사용자가 존재하지 않습니다. 프로필을 먼저 생성해주세요."
+      );
+    }
 
-  return team;
+    if (emblemFile) {
+      const fileExt = emblemFile.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+      const filePath = `team-emblems/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("teams")
+        .upload(filePath, emblemFile);
+
+      if (uploadError) {
+        console.error("파일 업로드 오류:", uploadError);
+        throw new Error(`팀 엠블럼 업로드 실패: ${uploadError.message}`);
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("teams")
+        .getPublicUrl(filePath);
+
+      emblem_url = urlData.publicUrl;
+    }
+
+    const { data: team, error: createError } = await supabase.rpc(
+      "create_team_with_member",
+      {
+        team_name: data.name,
+        team_description: data.description,
+        team_emblem_url: emblem_url,
+        team_city: data.city,
+        team_gu: data.gu,
+        team_leader_id: userId,
+        member_user_id: userId,
+      }
+    );
+
+    if (createError) {
+      console.error("팀 생성 오류:", createError);
+      if (createError.code === "23505") {
+        throw new Error(
+          "이미 존재하는 팀 이름입니다. 다른 이름을 사용해주세요."
+        );
+      } else if (createError.code === "23503") {
+        throw new Error(
+          "외래 키 제약 조건 위반: 사용자가 존재하지 않거나 접근할 수 없습니다."
+        );
+      }
+      throw new Error(`팀 생성 실패: ${createError.message}`);
+    }
+
+    return team;
+  } catch (error) {
+    console.error("팀 생성 중 예외 발생:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("팀 생성 중 알 수 없는 오류가 발생했습니다.");
+  }
 }
 
 export async function getTeamById(supabase: SupabaseClient, teamId: string) {
