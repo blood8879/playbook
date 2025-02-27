@@ -7,13 +7,18 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TeamInvitation } from "@/features/teams/types/index";
 
 export function Topbar() {
-  const { supabase } = useSupabase();
+  const { supabase, user } = useSupabase();
 
   const { data: invitations } = useQuery({
     queryKey: ["invitations"],
-    queryFn: () => getMyInvitations(supabase),
+    queryFn: () =>
+      user?.id
+        ? getMyInvitations(supabase, user.id)
+        : Promise.resolve([] as TeamInvitation[]),
+    enabled: !!user?.id,
   });
 
   return (

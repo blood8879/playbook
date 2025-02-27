@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { TeamInvitation } from "@/features/teams/types/index";
 
 export default function InvitationsPage() {
   const { supabase, user } = useSupabase();
@@ -18,7 +19,11 @@ export default function InvitationsPage() {
     refetch,
   } = useQuery({
     queryKey: ["invitations"],
-    queryFn: () => getMyInvitations(supabase, user?.id),
+    queryFn: () =>
+      user?.id
+        ? getMyInvitations(supabase, user.id)
+        : Promise.resolve([] as TeamInvitation[]),
+    enabled: !!user?.id,
   });
 
   const handleResponse = async (invitationId: string, accept: boolean) => {
@@ -51,13 +56,13 @@ export default function InvitationsPage() {
   return (
     <div className="container py-8">
       <h1 className="text-2xl font-bold mb-6">팀 초대 목록</h1>
-      {invitations?.length === 0 ? (
+      {!invitations || invitations.length === 0 ? (
         <p className="text-center text-muted-foreground py-8">
           받은 초대가 없습니다
         </p>
       ) : (
         <div className="grid gap-4">
-          {invitations?.map((invitation) => (
+          {invitations.map((invitation) => (
             <Card key={invitation.id}>
               <CardHeader>
                 <CardTitle>{invitation.team.name} 팀의 초대</CardTitle>

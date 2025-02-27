@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TeamFormData, teamSchema } from "../types";
+import { TeamFormData, teamSchema } from "../types/index";
 
 export function useTeamForm() {
   const [emblemFile, setEmblemFile] = useState<File | null>(null);

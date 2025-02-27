@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
-import { TeamMemberRole } from "../types";
+import { TeamMemberRole } from "../types/index";
 
 export function useTeamMemberRole(teamId?: string, userId?: string) {
   const { supabase } = useSupabase();

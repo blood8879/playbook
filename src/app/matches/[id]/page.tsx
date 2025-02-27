@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
 import {
   getMatchById,
@@ -13,7 +13,7 @@ import {
   getLastMatchesBetweenTeams,
   getLastMatchesOfTeam,
 } from "@/features/teams/api";
-import { TeamMatch } from "@/features/teams/types";
+import { TeamMatch } from "@/features/teams/types/index";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -25,6 +25,9 @@ import {
   Trophy,
   AlertCircle,
   Info,
+  Edit,
+  AlertTriangle,
+  MapPin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -40,8 +43,35 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { MatchGoalForm } from "@/features/teams/components/MatchGoalForm";
+import { MatchAssistForm } from "@/features/teams/components/MatchAssistForm";
+import { MatchMomForm } from "@/features/teams/components/MatchMomForm";
 
 /**
  * @ai_context
@@ -52,6 +82,7 @@ export default function MatchDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { supabase, user } = useSupabase();
+  const queryClient = useQueryClient();
   const matchId = params.id as string;
 
   // 매치 정보 조회
@@ -207,12 +238,6 @@ export default function MatchDetailPage() {
     enabled: !!matchData?.opponent_team?.id && !matchData.is_tbd,
   });
 
-  // 팀 멤버 역할 확인
-  const { isOwner, isManager } = useTeamMemberRole(
-    matchData?.team?.id,
-    user?.id
-  );
-
   // 골 정보 조회
   const { data: goals } = useQuery({
     queryKey: ["matchGoals", matchId],
@@ -359,13 +384,47 @@ export default function MatchDetailPage() {
     enabled: !!matchId, // 경기 ID만 있으면 조회 가능하도록 수정
   });
 
+  // 팀 멤버 조회
+  const { data: teamMembers } = useQuery<any[]>({
+    queryKey: ["teamMembers", matchData?.team_id],
+    queryFn: async () => {
+      if (!matchData?.team_id) return [];
+
+      const { data, error } = await supabase
+        .from("team_members")
+        .select(
+          `
+          id,
+          user_id,
+          role,
+          profiles:user_id(id, name, email)
+        `
+        )
+        .eq("team_id", matchData.team_id);
+
+      if (error) {
+        console.error("팀 멤버 조회 오류:", error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!matchData?.team_id,
+  });
+
   // 팀 멤버권한 확인
   const { data: teamMember } = useQuery({
     queryKey: ["teamMember", matchData?.team_id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("team_members")
-        .select("role")
+        .select(
+          `
+          role,
+          user_id,
+          profiles:user_id(id, name, email)
+        `
+        )
         .eq("team_id", matchData?.team_id)
         .eq("user_id", user?.id)
         .single();
@@ -436,6 +495,131 @@ export default function MatchDetailPage() {
     },
   });
 
+  // 경기 결과 업데이트 다이얼로그 관련 상태
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [homeScore, setHomeScore] = useState<number | "">("");
+  const [awayScore, setAwayScore] = useState<number | "">("");
+  const [selectedMom, setSelectedMom] = useState("");
+  const [isHome, setIsHome] = useState(true);
+
+  // 경기 결과 업데이트 뮤테이션
+  const updateMatchMutation = useMutation({
+    mutationFn: async () => {
+      console.log("경기 결과 업데이트 시작", {
+        matchId,
+        homeScore,
+        awayScore,
+        selectedMom,
+        isHome,
+      });
+
+      // 스코어가 입력되지 않은 경우 에러
+      if (homeScore === "" || awayScore === "") {
+        throw new Error("스코어를 입력해주세요.");
+      }
+
+      // 경기 결과 업데이트
+      const { data: matchData, error: matchError } = await supabase
+        .from("matches")
+        .update({
+          home_score: homeScore,
+          away_score: awayScore,
+          is_finished: true,
+          is_home: isHome,
+        })
+        .eq("id", matchId)
+        .select()
+        .single();
+
+      if (matchError) throw matchError;
+
+      // MOM 업데이트 (선택된 경우)
+      if (selectedMom) {
+        // 기존 MOM 삭제
+        await supabase.from("match_mom").delete().eq("match_id", matchId);
+
+        // 새 MOM 추가
+        const { error: momError } = await supabase.from("match_mom").insert({
+          match_id: matchId,
+          user_id: selectedMom,
+        });
+
+        if (momError) throw momError;
+      }
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchMom", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchGoals", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchAssists", matchId] });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "headToHead",
+          matchData?.team_id,
+          matchData?.opponent_team_id,
+        ],
+      });
+      queryClient.invalidateQueries({ queryKey: ["recentMeetings", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["homeTeamRecent", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["awayTeamRecent", matchId] });
+      setIsUpdateDialogOpen(false);
+      toast({
+        title: "경기 결과 업데이트 완료",
+        description: "경기 결과가 성공적으로 업데이트되었습니다.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "경기 결과 업데이트 실패",
+        description:
+          error.message || "경기 결과 업데이트 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 다이얼로그가 열릴 때 현재 경기 데이터로 초기화
+  useEffect(() => {
+    if (isUpdateDialogOpen && matchData) {
+      setHomeScore(matchData.home_score ?? "");
+      setAwayScore(matchData.away_score ?? "");
+      setSelectedMom(mom?.user_id || "");
+      setIsHome(matchData.is_home ?? true);
+    }
+  }, [isUpdateDialogOpen, matchData, mom]);
+
+  // 상대팀이 미정인지 확인
+  const isOpponentTeamUndecided =
+    matchData?.is_tbd ||
+    (!matchData?.opponent_team_id && !matchData?.opponent_guest_team_id);
+
+  // 디버깅용 로그
+  useEffect(() => {
+    if (matchData) {
+      console.log("매치 데이터 로드됨:", {
+        id: matchData.id,
+        is_tbd: matchData.is_tbd,
+        opponent_team_id: matchData.opponent_team_id,
+        opponent_guest_team_id: matchData.opponent_guest_team_id,
+        isOpponentTeamUndecided,
+        is_finished: matchData.is_finished,
+      });
+    }
+  }, [matchData, isOpponentTeamUndecided]);
+
+  // 날짜 포맷 함수
+  const formatMatchDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), "yyyy년 MM월 dd일 (EEE) HH:mm", {
+        locale: ko,
+      });
+    } catch (error) {
+      return dateString;
+    }
+  };
+
   if (isMatchLoading || isAttendanceLoading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -472,7 +656,12 @@ export default function MatchDetailPage() {
             ) : (
               <Shield className="w-6 h-6" />
             )}
-            <span className="text-xl font-bold">{matchData.team?.name}</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold">{matchData.team?.name}</span>
+              <span className="text-sm text-gray-600">
+                {matchData.is_home ? "홈" : "원정"}
+              </span>
+            </div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold mb-2">
@@ -485,12 +674,17 @@ export default function MatchDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-xl font-bold">
-              {matchData.is_tbd
-                ? "상대팀 미정"
-                : matchData.opponent_team?.name ||
-                  matchData.opponent_guest_team?.name}
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="text-xl font-bold">
+                {matchData.is_tbd
+                  ? "상대팀 미정"
+                  : matchData.opponent_team?.name ||
+                    matchData.opponent_guest_team?.name}
+              </span>
+              <span className="text-sm text-gray-600">
+                {matchData.is_home ? "원정" : "홈"}
+              </span>
+            </div>
             {matchData.opponent_team?.emblem_url ? (
               <Image
                 src={matchData.opponent_team?.emblem_url}
@@ -508,6 +702,16 @@ export default function MatchDetailPage() {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+          <MapPin className="w-4 h-4" />
+          {matchData.stadium?.name ? (
+            <>
+              {matchData.stadium.name} · {matchData.venue}
+            </>
+          ) : (
+            matchData.venue
+          )}
+        </div>
       </div>
       {/* 운영진에게만 결과 수정 버튼 표시 */}
       {isAdmin && (
@@ -518,15 +722,22 @@ export default function MatchDetailPage() {
               <p className="text-sm text-gray-500">
                 경기 결과를 수정할 수 있습니다.
               </p>
+              {isOpponentTeamUndecided && (
+                <div className="mt-2 flex items-center text-amber-600 text-sm">
+                  <AlertTriangle className="w-4 h-4 mr-1" />
+                  상대팀이 미정인 경우 경기 결과를 업데이트할 수 없습니다.
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               {isAdmin && (
                 <UpdateOpponent matchId={matchId} teamId={matchData.team_id} />
               )}
               <Button
-                onClick={() => router.push(`/matches/${matchId}/result`)}
-                className="bg-yellow-500 hover:bg-yellow-600"
+                onClick={() => setIsUpdateDialogOpen(true)}
+                disabled={isOpponentTeamUndecided}
               >
+                <Edit className="w-4 h-4 mr-2" />
                 경기 결과 업데이트
               </Button>
               {!matchData.is_finished && ( // 종료되지 않은 경기만 삭제 가능
@@ -538,6 +749,22 @@ export default function MatchDetailPage() {
                 </Button>
               )}
             </div>
+            {/* 디버깅 정보 */}
+            {/* {process.env.NODE_ENV === "development" && (
+              <div className="mt-4 text-xs text-gray-500 border-t pt-2">
+                <p>디버깅 정보:</p>
+                <p>is_tbd: {matchData.is_tbd ? "true" : "false"}</p>
+                <p>opponent_team_id: {matchData.opponent_team_id || "없음"}</p>
+                <p>
+                  opponent_guest_team_id:{" "}
+                  {matchData.opponent_guest_team_id || "없음"}
+                </p>
+                <p>
+                  isOpponentTeamUndecided:{" "}
+                  {isOpponentTeamUndecided ? "true" : "false"}
+                </p>
+              </div>
+            )} */}
           </div>
         </div>
       )}
@@ -997,7 +1224,9 @@ export default function MatchDetailPage() {
                     key={attendance.user_id}
                     className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
                   >
-                    {attendance.profiles?.name || attendance.profiles?.email}
+                    {attendance.profiles?.name ||
+                      attendance.profiles?.email ||
+                      "알 수 없는 사용자"}
                   </span>
                 ))}
             </div>
@@ -1092,6 +1321,122 @@ export default function MatchDetailPage() {
                 </>
               ) : (
                 "삭제"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 경기 결과 업데이트 다이얼로그 */}
+      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>경기 결과 업데이트</DialogTitle>
+            <DialogDescription>
+              경기 결과와 MOM(Man of the Match)을 선택해주세요.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div>
+              <Label htmlFor="isHome">홈/원정</Label>
+              <Select
+                value={isHome ? "home" : "away"}
+                onValueChange={(value) => setIsHome(value === "home")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="홈/원정 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="home">홈</SelectItem>
+                  <SelectItem value="away">원정</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                홈 경기는 우리 팀이 홈 팀이 되고, 상대팀이 원정 팀이 됩니다.
+                원정 경기는 우리 팀이 원정 팀이 되고, 상대팀이 홈 팀이 됩니다.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 items-end">
+              <div>
+                <Label htmlFor="homeScore">{matchData.team?.name} 스코어</Label>
+                <Input
+                  id="homeScore"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={homeScore}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setHomeScore(value === "" ? "" : Number(value));
+                  }}
+                />
+              </div>
+              <div>
+                <Label htmlFor="awayScore">
+                  {matchData.opponent_team?.name || "상대팀"} 스코어
+                </Label>
+                <Input
+                  id="awayScore"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={awayScore}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setAwayScore(value === "" ? "" : Number(value));
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="mom">MOM (Man of the Match)</Label>
+              <Select value={selectedMom} onValueChange={setSelectedMom}>
+                <SelectTrigger>
+                  <SelectValue placeholder="MOM 선택 (선택사항)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">선택 안함</SelectItem>
+                  {teamMembers?.map((member) => (
+                    <SelectItem key={member.user_id} value={member.user_id}>
+                      {member.profiles?.name ||
+                        member.profiles?.email ||
+                        "알 수 없는 사용자"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsUpdateDialogOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                console.log("업데이트 버튼 클릭", {
+                  homeScore,
+                  awayScore,
+                  selectedMom,
+                  isHome,
+                });
+                updateMatchMutation.mutate();
+              }}
+              disabled={updateMatchMutation.isPending}
+            >
+              {updateMatchMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  업데이트 중...
+                </>
+              ) : (
+                "업데이트"
               )}
             </Button>
           </DialogFooter>

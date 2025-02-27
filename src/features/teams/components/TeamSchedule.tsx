@@ -4,7 +4,8 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TeamMatch } from "../types";
+import { TeamMatch } from "../types/index";
+import Link from "next/link";
 
 interface TeamScheduleProps {
   matches: TeamMatch[];
@@ -12,7 +13,11 @@ interface TeamScheduleProps {
   upcoming?: boolean;
 }
 
-export function TeamSchedule({ matches, isLoading, upcoming = false }: TeamScheduleProps) {
+export function TeamSchedule({
+  matches,
+  isLoading,
+  upcoming = false,
+}: TeamScheduleProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -43,28 +48,27 @@ export function TeamSchedule({ matches, isLoading, upcoming = false }: TeamSched
   return (
     <div className="space-y-2">
       {filteredMatches.map((match) => (
-        <div
-          key={match.id}
-          className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-        >
-          <div className="text-sm text-gray-500">
-            {format(new Date(match.match_date), "PPP p", { locale: ko })}
+        <Link href={`/matches/${match.id}`} key={match.id}>
+          <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer mb-2">
+            <div className="text-sm text-gray-500">
+              {format(new Date(match.match_date), "PPP p", { locale: ko })}
+            </div>
+            <div className="font-medium">
+              {match.is_tbd
+                ? "상대팀 미정"
+                : match.opponent_team?.name || match.opponent_guest_team?.name}
+            </div>
+            <div className="text-sm text-gray-500">{match.venue}</div>
+            <div className="text-sm text-gray-500">
+              {match.competition_type === "friendly"
+                ? "친선전"
+                : match.competition_type === "league"
+                ? "리그"
+                : "컵"}{" "}
+              · {match.game_type}
+            </div>
           </div>
-          <div className="font-medium">
-            {match.is_tbd
-              ? "상대팀 미정"
-              : match.opponent_team?.name || match.opponent_guest_team?.name}
-          </div>
-          <div className="text-sm text-gray-500">{match.venue}</div>
-          <div className="text-sm text-gray-500">
-            {match.competition_type === "friendly"
-              ? "친선전"
-              : match.competition_type === "league"
-              ? "리그"
-              : "컵"}{" "}
-            · {match.game_type}
-          </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

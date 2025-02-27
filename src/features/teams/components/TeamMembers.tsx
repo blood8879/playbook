@@ -10,7 +10,7 @@ import {
   removeTeamMember,
   swapTeamNumbers,
 } from "../api";
-import { TeamMember, TeamMemberRole } from "../types";
+import { TeamMember, TeamMemberRole } from "../types/index";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

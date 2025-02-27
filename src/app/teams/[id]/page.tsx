@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { getTeamById, getMatchById } from "@/features/teams/api";
 import { useSupabase } from "@/lib/supabase/client";
-import { TeamDetail } from "@/features/teams/components/TeamDetail";
 import { TeamDetailSkeleton } from "@/features/teams/components/TeamDetailSkeleton";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -13,16 +11,13 @@ import { TeamManagement } from "@/features/teams/components/TeamManagement";
 import { TeamSchedule } from "@/features/teams/components/TeamSchedule";
 import { TeamStadiums } from "@/features/teams/components/TeamStadiums";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, Shield } from "lucide-react";
+import { Calendar, MapPin, Users, Shield, Plus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Team } from "@/features/teams/types";
+import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
-import {
-  getTeamMembers,
-  getTeamById as fetchTeamById,
-  searchTeams,
-} from "@/features/teams/api";
+import { getTeamById as fetchTeamById } from "@/features/teams/api";
 import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
+import { TeamMatchResults } from "@/features/teams/components/TeamMatchResults";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -55,6 +50,8 @@ export default function TeamDetailPage() {
     enabled: !!user && !!teamId,
   });
   const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
+  const isLeader = team?.leader_id === user?.id;
+  const canManageMatches = isLeader || isAdmin;
 
   // 모든 경기 일정 한 번에 조회
   const {
@@ -92,8 +89,6 @@ export default function TeamDetailPage() {
   if (isTeamLoading) {
     return <TeamDetailSkeleton />;
   }
-
-  const isLeader = team?.leader_id === user?.id;
 
   return (
     <div className="container py-8">
@@ -143,20 +138,36 @@ export default function TeamDetailPage() {
             <TabsList>
               <TabsTrigger value="schedule">일정 관리</TabsTrigger>
               <TabsTrigger value="members">팀원 관리</TabsTrigger>
+              <TabsTrigger value="results">경기 결과</TabsTrigger>
               <TabsTrigger value="stadiums">경기장 관리</TabsTrigger>
             </TabsList>
 
             <TabsContent value="schedule">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">경기 일정</h2>
+                {canManageMatches && (
+                  <Button
+                    onClick={() => router.push(`/matches/new?team=${teamId}`)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    경기 생성
+                  </Button>
+                )}
+              </div>
               <TeamMatches
                 matches={matches || []}
                 isLoading={isMatchesLoading}
                 teamId={teamId}
-                isLeader={isAdmin}
+                canManageMatches={canManageMatches}
               />
             </TabsContent>
 
             <TabsContent value="members">
               <TeamManagement teamId={teamId} isLeader={isLeader} />
+            </TabsContent>
+
+            <TabsContent value="results">
+              <TeamMatchResults teamId={teamId} />
             </TabsContent>
 
             <TabsContent value="stadiums">

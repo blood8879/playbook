@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { TeamMatch, MatchAttendance } from "@/features/teams/types";
+import { TeamMatch, MatchAttendance } from "@/features/teams/types/index";
 
 interface MatchResultFormProps {
   match: TeamMatch;
@@ -45,7 +45,16 @@ export function MatchResultForm({
       isMom: boolean;
     };
   }>(() => {
-    const initial: any = {};
+    const initial: {
+      [key: string]: {
+        attendance: "attending" | "absent" | "maybe";
+        fieldGoals: number;
+        freeKickGoals: number;
+        penaltyGoals: number;
+        assists: number;
+        isMom: boolean;
+      };
+    } = {};
     attendanceList?.forEach((attendance) => {
       initial[attendance.user_id] = {
         attendance: attendance.status,
@@ -204,8 +213,8 @@ export function MatchResultForm({
                 <TableCell>
                   <Checkbox
                     checked={stats.isMom}
-                    onCheckedChange={(checked) =>
-                      handleStatChange(attendance.user_id, "isMom", checked)
+                    onCheckedChange={(checked: boolean | "indeterminate") =>
+                      handleStatChange(attendance.user_id, "isMom", !!checked)
                     }
                   />
                 </TableCell>
