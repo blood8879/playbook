@@ -64,6 +64,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { MatchGoalForm } from "@/features/teams/components/MatchGoalForm";
+import { MatchAssistForm } from "@/features/teams/components/MatchAssistForm";
+import { MatchMomForm } from "@/features/teams/components/MatchMomForm";
 
 /**
  * @ai_context
@@ -491,51 +499,37 @@ export default function MatchDetailPage() {
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [homeScore, setHomeScore] = useState<number | "">("");
   const [awayScore, setAwayScore] = useState<number | "">("");
-  const [selectedMom, setSelectedMom] = useState<string>("");
+  const [selectedMom, setSelectedMom] = useState("");
+  const [isHome, setIsHome] = useState(true);
 
   // 경기 결과 업데이트 뮤테이션
   const updateMatchMutation = useMutation({
     mutationFn: async () => {
       console.log("경기 결과 업데이트 시작", {
-        is_tbd: matchData?.is_tbd,
-        opponent_team_id: matchData?.opponent_team_id,
-        opponent_guest_team_id: matchData?.opponent_guest_team_id,
-        isOpponentTeamUndecided,
+        matchId,
+        homeScore,
+        awayScore,
+        selectedMom,
+        isHome,
       });
 
-      // 상대팀이 미정인 경우 업데이트 불가
-      if (isOpponentTeamUndecided) {
-        throw new Error(
-          "상대팀이 미정인 경우 경기 결과를 업데이트할 수 없습니다."
-        );
-      }
-
-      // 스코어 유효성 검사
+      // 스코어가 입력되지 않은 경우 에러
       if (homeScore === "" || awayScore === "") {
-        throw new Error("홈팀과 원정팀 스코어를 모두 입력해주세요.");
-      }
-
-      // 스코어가 음수인지 확인
-      if (
-        (typeof homeScore === "number" && homeScore < 0) ||
-        (typeof awayScore === "number" && awayScore < 0)
-      ) {
-        throw new Error("스코어는 0 이상이어야 합니다.");
+        throw new Error("스코어를 입력해주세요.");
       }
 
       // 경기 결과 업데이트
-      const { data, error: matchError } = await supabase
+      const { data: matchData, error: matchError } = await supabase
         .from("matches")
         .update({
           home_score: homeScore,
           away_score: awayScore,
-          status: "completed",
           is_finished: true,
+          is_home: isHome,
         })
         .eq("id", matchId)
-        .select();
-
-      console.log("경기 결과 업데이트 결과", { data, error: matchError });
+        .select()
+        .single();
 
       if (matchError) throw matchError;
 
@@ -586,16 +580,15 @@ export default function MatchDetailPage() {
     },
   });
 
-  // 초기 값 설정
+  // 다이얼로그가 열릴 때 현재 경기 데이터로 초기화
   useEffect(() => {
-    if (matchData) {
-      setHomeScore(matchData.home_score !== null ? matchData.home_score : "");
-      setAwayScore(matchData.away_score !== null ? matchData.away_score : "");
+    if (isUpdateDialogOpen && matchData) {
+      setHomeScore(matchData.home_score ?? "");
+      setAwayScore(matchData.away_score ?? "");
+      setSelectedMom(mom?.user_id || "");
+      setIsHome(matchData.is_home ?? true);
     }
-    if (mom) {
-      setSelectedMom(mom.user_id);
-    }
-  }, [matchData, mom]);
+  }, [isUpdateDialogOpen, matchData, mom]);
 
   // 상대팀이 미정인지 확인
   const isOpponentTeamUndecided =
@@ -663,7 +656,12 @@ export default function MatchDetailPage() {
             ) : (
               <Shield className="w-6 h-6" />
             )}
-            <span className="text-xl font-bold">{matchData.team?.name}</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold">{matchData.team?.name}</span>
+              <span className="text-sm text-gray-600">
+                {matchData.is_home ? "홈" : "원정"}
+              </span>
+            </div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold mb-2">
@@ -676,12 +674,17 @@ export default function MatchDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-xl font-bold">
-              {matchData.is_tbd
-                ? "상대팀 미정"
-                : matchData.opponent_team?.name ||
-                  matchData.opponent_guest_team?.name}
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="text-xl font-bold">
+                {matchData.is_tbd
+                  ? "상대팀 미정"
+                  : matchData.opponent_team?.name ||
+                    matchData.opponent_guest_team?.name}
+              </span>
+              <span className="text-sm text-gray-600">
+                {matchData.is_home ? "원정" : "홈"}
+              </span>
+            </div>
             {matchData.opponent_team?.emblem_url ? (
               <Image
                 src={matchData.opponent_team?.emblem_url}
@@ -699,7 +702,7 @@ export default function MatchDetailPage() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
           <MapPin className="w-4 h-4" />
           {matchData.stadium?.name ? (
             <>
@@ -1335,6 +1338,26 @@ export default function MatchDetailPage() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            <div>
+              <Label htmlFor="isHome">홈/원정</Label>
+              <Select
+                value={isHome ? "home" : "away"}
+                onValueChange={(value) => setIsHome(value === "home")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="홈/원정 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="home">홈</SelectItem>
+                  <SelectItem value="away">원정</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                홈 경기는 우리 팀이 홈 팀이 되고, 상대팀이 원정 팀이 됩니다.
+                원정 경기는 우리 팀이 원정 팀이 되고, 상대팀이 홈 팀이 됩니다.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 items-end">
               <div>
                 <Label htmlFor="homeScore">{matchData.team?.name} 스코어</Label>
@@ -1401,7 +1424,7 @@ export default function MatchDetailPage() {
                   homeScore,
                   awayScore,
                   selectedMom,
-                  isOpponentTeamUndecided,
+                  isHome,
                 });
                 updateMatchMutation.mutate();
               }}

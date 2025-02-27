@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { area } from "@/constants/area";
-import { TeamFormData } from "../types";
+import { TeamFormData } from "../types/index";
 import { PositionSelector } from "./PositionSelector";
 import { NumberSelector } from "./NumberSelector";
 

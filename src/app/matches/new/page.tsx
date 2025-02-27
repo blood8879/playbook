@@ -87,6 +87,11 @@ const matchFormSchema = z
     game_type: z.enum(["5vs5", "6vs6", "11vs11"], {
       required_error: "경기 방식을 선택해주세요.",
     }),
+    is_home: z
+      .boolean({
+        required_error: "홈/원정 여부를 선택해주세요.",
+      })
+      .default(true),
     team_id: z.string().optional(),
   })
   .refine(
@@ -148,6 +153,7 @@ export default function CreateMatchPage() {
       description: "",
       competition_type: "friendly",
       game_type: "5vs5",
+      is_home: true,
       opponent_guest_team_name: "",
       opponent_guest_team_description: "",
     },
@@ -1025,7 +1031,7 @@ export default function CreateMatchPage() {
                 />
 
                 {/* 경기 유형 */}
-                {/* <FormField
+                <FormField
                   control={form.control}
                   name="competition_type"
                   render={({ field }) => (
@@ -1049,7 +1055,36 @@ export default function CreateMatchPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                /> */}
+                />
+
+                {/* 홈/원정 선택 */}
+                <FormField
+                  control={form.control}
+                  name="is_home"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>홈/원정</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "home")
+                        }
+                        defaultValue={field.value ? "home" : "away"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="홈/원정 선택" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="home">홈</SelectItem>
+                          <SelectItem value="away">원정</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 {/* 경기 방식 */}
                 {/* <FormField

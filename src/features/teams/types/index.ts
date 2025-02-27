@@ -47,10 +47,12 @@ export interface TeamMatch {
   is_finished: boolean;
   home_score: number | null;
   away_score: number | null;
+  is_home: boolean;
   created_at: string;
   team?: Team;
   opponent_team?: Team;
   opponent_guest_team?: GuestTeam;
+  stadium?: Stadium;
 }
 
 export interface HeadToHeadStats {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSupabase } from "@/lib/supabase/client";
@@ -66,6 +66,9 @@ const scheduleFormSchema = z.object({
   game_type: z.enum(["5vs5", "6vs6", "11vs11"], {
     required_error: "경기 방식을 선택해주세요.",
   }),
+  is_home: z.boolean({
+    required_error: "홈/원정 여부를 선택해주세요.",
+  }),
   description: z.string().optional(),
   start_date: z.date({
     required_error: "시작 날짜를 선택해주세요.",
@@ -95,7 +98,8 @@ const stadiumFormSchema = z.object({
 
 type StadiumFormValues = z.infer<typeof stadiumFormSchema>;
 
-export default function CreateSchedulePage() {
+// 검색 파라미터를 사용하는 컴포넌트
+function SchedulePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = searchParams.get("team");
@@ -117,6 +121,7 @@ export default function CreateSchedulePage() {
       stadium_id: "none",
       competition_type: "friendly",
       game_type: "11vs11",
+      is_home: true,
       description: "",
       start_date: new Date(),
       end_date: addDays(new Date(), 30),
@@ -275,6 +280,7 @@ export default function CreateSchedulePage() {
               day_of_week: koreanDay,
               start_time: timeSlot.start_time,
               end_time: timeSlot.end_time,
+              is_home: data.is_home,
             });
           }
         }
@@ -514,8 +520,36 @@ export default function CreateSchedulePage() {
                   />
                 )}
 
-                {/* 경기 유형 */}
+                {/* 홈/원정 선택 */}
                 <FormField
+                  control={form.control}
+                  name="is_home"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>홈/원정</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "home")
+                        }
+                        defaultValue={field.value ? "home" : "away"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="홈/원정 선택" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="home">홈</SelectItem>
+                          <SelectItem value="away">원정</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* 경기 유형 */}
+                {/* <FormField
                   control={form.control}
                   name="competition_type"
                   render={({ field }) => (
@@ -539,10 +573,10 @@ export default function CreateSchedulePage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* 경기 방식 */}
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="game_type"
                   render={({ field }) => (
@@ -566,7 +600,7 @@ export default function CreateSchedulePage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* 경기 설명 */}
                 <FormField
@@ -834,7 +868,14 @@ export default function CreateSchedulePage() {
                           {match.start_time} - {match.end_time}
                         </p>
                       </div>
-                      <Badge variant="outline">{match.game_type}</Badge>
+                      <div className="flex gap-2">
+                        <Badge variant="outline">{match.game_type}</Badge>
+                        <Badge
+                          variant={match.is_home ? "default" : "secondary"}
+                        >
+                          {match.is_home ? "홈" : "원정"}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="mt-2 text-sm">
                       <p>
@@ -886,6 +927,21 @@ export default function CreateSchedulePage() {
         </Card>
       )}
     </div>
+  );
+}
+
+// 메인 페이지 컴포넌트
+export default function CreateSchedulePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-[400px]">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      }
+    >
+      <SchedulePageContent />
+    </Suspense>
   );
 }
 

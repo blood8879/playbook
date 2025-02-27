@@ -1,3 +1,5 @@
+import { SupabaseClient } from "@supabase/supabase-js";
+
 export async function getLastMatchesOfTeam(
   supabase: SupabaseClient,
   teamId: string,
