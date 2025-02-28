@@ -5,6 +5,7 @@ import {
   TeamInvitation,
   TeamMatch,
   HeadToHeadStats,
+  MatchAttendance,
 } from "./types/index";
 import { TeamMemberRole, TeamMemberStatus } from "./types/index";
 
@@ -588,7 +589,7 @@ export interface MatchAttendanceCount {
 export async function getMatchAttendanceList(
   supabase: SupabaseClient,
   matchId: string
-) {
+): Promise<MatchAttendance[]> {
   const { data, error } = await supabase
     .from("match_attendance")
     .select(
@@ -615,7 +616,7 @@ export async function getMatchAttendanceList(
   return data.map((attendance) => ({
     ...attendance,
     team_id: attendance.profiles?.team_members?.[0]?.team_id,
-  }));
+  })) as MatchAttendance[];
 }
 
 export async function updateMatchResult(
@@ -632,8 +633,12 @@ export async function updateMatchResult(
       supabase.from("match_mom").delete().eq("match_id", matchId),
     ]);
 
+    // 데이터 형식 확인 및 추출
+    const playerStats = data.playerStats || data;
+    const matchScore = data.matchScore || { homeScore: 0, awayScore: 0 };
+
     // 2. 참석 상태 업데이트
-    const attendancePromises = Object.entries(data).map(
+    const attendancePromises = Object.entries(playerStats).map(
       ([userId, stats]: [string, any]) =>
         supabase.from("match_attendance").upsert({
           match_id: matchId,
@@ -642,41 +647,9 @@ export async function updateMatchResult(
         })
     );
 
-    // 3. 팀별 골 수 계산
-    let homeScore = 0;
-    let awayScore = 0;
-
-    // 매치 정보 조회
-    const { data: match } = await supabase
-      .from("matches")
-      .select(
-        `
-        *,
-        team:teams!matches_team_id_fkey(*),
-        opponent_team:teams!matches_opponent_team_id_fkey(*)
-      `
-      )
-      .eq("id", matchId)
-      .single();
-
-    // 각 선수의 골 수 계산 및 팀별 합산
-    Object.entries(data).forEach(([userId, stats]: [string, any]) => {
-      const totalGoals =
-        (stats.fieldGoals || 0) +
-        (stats.freeKickGoals || 0) +
-        (stats.penaltyGoals || 0);
-
-      // 선수의 팀 확인
-      const isHomeTeam = attendanceList.find(
-        (a) => a.user_id === userId && a.team_id === match.team_id
-      );
-
-      if (isHomeTeam) {
-        homeScore += totalGoals;
-      } else {
-        awayScore += totalGoals;
-      }
-    });
+    // 3. 스코어 설정 (폼에서 계산된 값 사용)
+    const homeScore = matchScore.homeScore;
+    const awayScore = matchScore.awayScore;
 
     // 4. matches 테이블 업데이트
     await supabase
@@ -688,12 +661,8 @@ export async function updateMatchResult(
       })
       .eq("id", matchId);
 
-    console.log("homeScore", homeScore);
-    console.log("awayScore", awayScore);
-    console.log("match", match);
-
     // 5. 골 기록 업데이트
-    const goalPromises = Object.entries(data).flatMap(
+    const goalPromises = Object.entries(playerStats).flatMap(
       ([userId, stats]: [string, any]) => {
         const goals = [];
         if (stats.fieldGoals > 0) {
@@ -728,7 +697,7 @@ export async function updateMatchResult(
     );
 
     // 어시스트 업데이트
-    const assistPromises = Object.entries(data).flatMap(
+    const assistPromises = Object.entries(playerStats).flatMap(
       ([userId, stats]: [string, any]) => {
         const assists = [];
         if (stats.assists > 0) {
@@ -746,7 +715,7 @@ export async function updateMatchResult(
     );
 
     // MOM 업데이트
-    const momUser = Object.entries(data).find(
+    const momUser = Object.entries(playerStats).find(
       ([_, stats]: [string, any]) => stats.isMom
     )?.[0];
     if (momUser) {

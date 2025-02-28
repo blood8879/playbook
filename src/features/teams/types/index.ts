@@ -134,6 +134,7 @@ export interface MatchAttendance {
   user_id: string;
   status: "attending" | "absent" | "maybe";
   created_at: string;
+  team_id?: string;
   profiles?: {
     id: string;
     name: string;

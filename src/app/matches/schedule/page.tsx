@@ -872,6 +872,9 @@ function SchedulePageContent() {
                         <Badge variant="outline">{match.game_type}</Badge>
                         <Badge
                           variant={match.is_home ? "default" : "secondary"}
+                          className={
+                            match.is_home ? "bg-blue-500" : "bg-orange-500"
+                          }
                         >
                           {match.is_home ? "홈" : "원정"}
                         </Badge>

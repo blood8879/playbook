@@ -39,6 +39,7 @@ export default function MatchResultPage() {
       queryClient.invalidateQueries({ queryKey: ["matchAssists", matchId] });
       queryClient.invalidateQueries({ queryKey: ["matchMom", matchId] });
       queryClient.invalidateQueries({ queryKey: ["attendance", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matches"] });
 
       toast({
         title: "경기 결과가 저장되었습니다.",
@@ -63,13 +64,28 @@ export default function MatchResultPage() {
     );
   }
 
+  // updateResult 함수를 래핑하여 Promise를 반환하는 함수로 만듭니다
+  const handleSubmit = (data: any): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      updateResult(data, {
+        onSuccess: () => resolve(),
+        onError: (error) => reject(error),
+      });
+    });
+  };
+
   return (
     <div className="container mx-auto py-6">
       <h1 className="text-2xl font-bold mb-6">경기 결과 업데이트</h1>
       <MatchResultForm
         match={matchData}
         attendanceList={attendanceList}
-        onSubmit={updateResult}
+        onSubmit={handleSubmit}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["matches"] });
+          queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+          queryClient.invalidateQueries({ queryKey: ["attendance", matchId] });
+        }}
         isUpdating={isUpdating}
       />
     </div>

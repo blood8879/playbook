@@ -43,7 +43,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -495,101 +494,6 @@ export default function MatchDetailPage() {
     },
   });
 
-  // 경기 결과 업데이트 다이얼로그 관련 상태
-  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
-  const [homeScore, setHomeScore] = useState<number | "">("");
-  const [awayScore, setAwayScore] = useState<number | "">("");
-  const [selectedMom, setSelectedMom] = useState("");
-  const [isHome, setIsHome] = useState(true);
-
-  // 경기 결과 업데이트 뮤테이션
-  const updateMatchMutation = useMutation({
-    mutationFn: async () => {
-      console.log("경기 결과 업데이트 시작", {
-        matchId,
-        homeScore,
-        awayScore,
-        selectedMom,
-        isHome,
-      });
-
-      // 스코어가 입력되지 않은 경우 에러
-      if (homeScore === "" || awayScore === "") {
-        throw new Error("스코어를 입력해주세요.");
-      }
-
-      // 경기 결과 업데이트
-      const { data: matchData, error: matchError } = await supabase
-        .from("matches")
-        .update({
-          home_score: homeScore,
-          away_score: awayScore,
-          is_finished: true,
-          is_home: isHome,
-        })
-        .eq("id", matchId)
-        .select()
-        .single();
-
-      if (matchError) throw matchError;
-
-      // MOM 업데이트 (선택된 경우)
-      if (selectedMom) {
-        // 기존 MOM 삭제
-        await supabase.from("match_mom").delete().eq("match_id", matchId);
-
-        // 새 MOM 추가
-        const { error: momError } = await supabase.from("match_mom").insert({
-          match_id: matchId,
-          user_id: selectedMom,
-        });
-
-        if (momError) throw momError;
-      }
-
-      return { success: true };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
-      queryClient.invalidateQueries({ queryKey: ["matchMom", matchId] });
-      queryClient.invalidateQueries({ queryKey: ["matchGoals", matchId] });
-      queryClient.invalidateQueries({ queryKey: ["matchAssists", matchId] });
-      queryClient.invalidateQueries({
-        queryKey: [
-          "headToHead",
-          matchData?.team_id,
-          matchData?.opponent_team_id,
-        ],
-      });
-      queryClient.invalidateQueries({ queryKey: ["recentMeetings", matchId] });
-      queryClient.invalidateQueries({ queryKey: ["homeTeamRecent", matchId] });
-      queryClient.invalidateQueries({ queryKey: ["awayTeamRecent", matchId] });
-      setIsUpdateDialogOpen(false);
-      toast({
-        title: "경기 결과 업데이트 완료",
-        description: "경기 결과가 성공적으로 업데이트되었습니다.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "경기 결과 업데이트 실패",
-        description:
-          error.message || "경기 결과 업데이트 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // 다이얼로그가 열릴 때 현재 경기 데이터로 초기화
-  useEffect(() => {
-    if (isUpdateDialogOpen && matchData) {
-      setHomeScore(matchData.home_score ?? "");
-      setAwayScore(matchData.away_score ?? "");
-      setSelectedMom(mom?.user_id || "");
-      setIsHome(matchData.is_home ?? true);
-    }
-  }, [isUpdateDialogOpen, matchData, mom]);
-
   // 상대팀이 미정인지 확인
   const isOpponentTeamUndecided =
     matchData?.is_tbd ||
@@ -734,7 +638,7 @@ export default function MatchDetailPage() {
                 <UpdateOpponent matchId={matchId} teamId={matchData.team_id} />
               )}
               <Button
-                onClick={() => setIsUpdateDialogOpen(true)}
+                onClick={() => router.push(`/matches/${matchId}/result`)}
                 disabled={isOpponentTeamUndecided}
               >
                 <Edit className="w-4 h-4 mr-2" />
@@ -1321,122 +1225,6 @@ export default function MatchDetailPage() {
                 </>
               ) : (
                 "삭제"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 경기 결과 업데이트 다이얼로그 */}
-      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>경기 결과 업데이트</DialogTitle>
-            <DialogDescription>
-              경기 결과와 MOM(Man of the Match)을 선택해주세요.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div>
-              <Label htmlFor="isHome">홈/원정</Label>
-              <Select
-                value={isHome ? "home" : "away"}
-                onValueChange={(value) => setIsHome(value === "home")}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="홈/원정 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="home">홈</SelectItem>
-                  <SelectItem value="away">원정</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground mt-1">
-                홈 경기는 우리 팀이 홈 팀이 되고, 상대팀이 원정 팀이 됩니다.
-                원정 경기는 우리 팀이 원정 팀이 되고, 상대팀이 홈 팀이 됩니다.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 items-end">
-              <div>
-                <Label htmlFor="homeScore">{matchData.team?.name} 스코어</Label>
-                <Input
-                  id="homeScore"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={homeScore}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setHomeScore(value === "" ? "" : Number(value));
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="awayScore">
-                  {matchData.opponent_team?.name || "상대팀"} 스코어
-                </Label>
-                <Input
-                  id="awayScore"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={awayScore}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setAwayScore(value === "" ? "" : Number(value));
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="mom">MOM (Man of the Match)</Label>
-              <Select value={selectedMom} onValueChange={setSelectedMom}>
-                <SelectTrigger>
-                  <SelectValue placeholder="MOM 선택 (선택사항)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">선택 안함</SelectItem>
-                  {teamMembers?.map((member) => (
-                    <SelectItem key={member.user_id} value={member.user_id}>
-                      {member.profiles?.name ||
-                        member.profiles?.email ||
-                        "알 수 없는 사용자"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsUpdateDialogOpen(false)}
-            >
-              취소
-            </Button>
-            <Button
-              onClick={() => {
-                console.log("업데이트 버튼 클릭", {
-                  homeScore,
-                  awayScore,
-                  selectedMom,
-                  isHome,
-                });
-                updateMatchMutation.mutate();
-              }}
-              disabled={updateMatchMutation.isPending}
-            >
-              {updateMatchMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  업데이트 중...
-                </>
-              ) : (
-                "업데이트"
               )}
             </Button>
           </DialogFooter>

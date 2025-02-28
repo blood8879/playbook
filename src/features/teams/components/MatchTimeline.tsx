@@ -196,18 +196,22 @@ export function MatchTimeline({
 
         <div className="text-center">
           <div className="text-5xl font-bold mb-2">
-            {isOpponentTeamUndecided
+            {match.is_finished
+              ? `${match.home_score} - ${match.away_score}`
+              : isOpponentTeamUndecided
               ? "vs"
-              : `${match.home_score} - ${match.away_score}`}
+              : `${match.home_score || 0} - ${match.away_score || 0}`}
           </div>
           <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {match.status === "completed" ? "경기 종료" : "예정된 경기"}
+            {match.is_finished ? "경기 종료" : "예정된 경기"}
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="text-lg font-semibold text-right">
-            {isOpponentTeamUndecided ? "미정" : match.opponent_team?.name}
+            {isOpponentTeamUndecided
+              ? "미정"
+              : match.opponent_team?.name || match.opponent_guest_team?.name}
           </div>
           <div className="w-16 h-16 relative">
             {!isOpponentTeamUndecided && match.opponent_team?.emblem_url ? (
@@ -260,7 +264,10 @@ export function MatchTimeline({
 
         <div className="bg-red-50 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-red-700 mb-3 text-center border-b border-red-100 pb-2">
-            {isOpponentTeamUndecided ? "상대팀" : match.opponent_team?.name}{" "}
+            {isOpponentTeamUndecided
+              ? "상대팀"
+              : match.opponent_team?.name ||
+                match.opponent_guest_team?.name}{" "}
             득점자
           </h3>
           {isLoading || isGoalsLoading ? (

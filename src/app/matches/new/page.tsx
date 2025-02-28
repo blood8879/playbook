@@ -38,7 +38,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CalendarIcon, Plus, Search } from "lucide-react";
+import { Loader2, CalendarIcon, Plus, Search, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -129,6 +129,7 @@ export default function CreateMatchPage() {
   });
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const { toast } = useToast();
+  const [filteredOtherTeams, setFilteredOtherTeams] = useState<any[]>([]);
 
   // URL에서 팀 ID 가져오기
   useEffect(() => {
@@ -196,7 +197,7 @@ export default function CreateMatchPage() {
 
       const { data, error } = await supabase
         .from("teams")
-        .select("*")
+        .select("id, name, emblem_url, city, gu")
         .not("id", "in", `(${userTeamIds.join(",")})`);
 
       if (error) throw error;
@@ -204,6 +205,14 @@ export default function CreateMatchPage() {
     },
     enabled: !!userTeams && userTeams.length > 0,
   });
+
+  // otherTeams가 로드될 때 filteredOtherTeams 초기화
+  useEffect(() => {
+    // 검색 결과는 사용자가 검색할 때만 표시하도록 초기화하지 않음
+    // if (otherTeams) {
+    //   setFilteredOtherTeams(otherTeams);
+    // }
+  }, [otherTeams]);
 
   // 선택된 팀의 경기장 및 게스트팀 정보 조회
   useEffect(() => {
@@ -410,6 +419,7 @@ export default function CreateMatchPage() {
         description: data.description || null,
         competition_type: "friendly",
         game_type: "11vs11",
+        is_home: data.is_home,
       });
 
       // match_date와 match_time을 결합하여 하나의 timestamp로 변환
@@ -437,6 +447,7 @@ export default function CreateMatchPage() {
           // game_type: data.game_type,
           competition_type: "friendly",
           game_type: "11vs11",
+          is_home: data.is_home,
         })
         .select()
         .single();
@@ -741,6 +752,48 @@ export default function CreateMatchPage() {
                   )}
                 />
 
+                {/* 홈/원정 선택 */}
+                <FormField
+                  control={form.control}
+                  name="is_home"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>홈/원정</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "home")
+                        }
+                        defaultValue={field.value ? "home" : "away"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="홈/원정 선택" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem
+                            value="home"
+                            className="text-blue-600 font-medium"
+                          >
+                            홈
+                          </SelectItem>
+                          <SelectItem
+                            value="away"
+                            className="text-orange-600 font-medium"
+                          >
+                            원정
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        홈 경기는 우리 팀이 주최하는 경기, 원정 경기는 상대 팀이
+                        주최하는 경기입니다.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* 상대팀 유형 */}
                 <FormField
                   control={form.control}
@@ -791,30 +844,123 @@ export default function CreateMatchPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>상대팀 선택</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="상대팀을 선택하세요" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isLoadingOtherTeams ? (
-                              <div className="flex justify-center p-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            placeholder="팀 이름으로 검색"
+                            className="mb-2"
+                            onChange={(e) => {
+                              const searchTerm = e.target.value.toLowerCase();
+                              if (searchTerm.trim() === "") {
+                                setFilteredOtherTeams([]);
+                              } else {
+                                const filteredTeams = otherTeams?.filter(
+                                  (team) =>
+                                    team.name.toLowerCase().includes(searchTerm)
+                                );
+                                setFilteredOtherTeams(filteredTeams || []);
+                              }
+                            }}
+                          />
+                          {(filteredOtherTeams.length > 0 ||
+                            isLoadingOtherTeams) && (
+                            <div className="max-h-60 overflow-auto border rounded-md">
+                              {isLoadingOtherTeams ? (
+                                <div className="flex justify-center p-4">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                              ) : filteredOtherTeams.length > 0 ? (
+                                filteredOtherTeams.map((team) => (
+                                  <div
+                                    key={team.id}
+                                    className={`flex items-center p-2 cursor-pointer hover:bg-gray-100 ${
+                                      field.value === team.id
+                                        ? "bg-gray-100"
+                                        : ""
+                                    }`}
+                                    onClick={() => field.onChange(team.id)}
+                                  >
+                                    {team.emblem_url ? (
+                                      <img
+                                        src={team.emblem_url}
+                                        alt={`${team.name} 엠블럼`}
+                                        className="w-6 h-6 mr-2 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-6 h-6 mr-2 rounded-full bg-gray-200 flex items-center justify-center text-xs">
+                                        {team.name.charAt(0)}
+                                      </div>
+                                    )}
+                                    <span>
+                                      {team.name}{" "}
+                                      <span className="text-xs text-gray-500">
+                                        ({team.city} {team.gu})
+                                      </span>
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-4 text-center text-gray-500">
+                                  검색 결과가 없습니다
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {field.value && (
+                          <div className="mt-2 p-2 border rounded-md bg-gray-50">
+                            <div className="flex items-center">
+                              {otherTeams?.find((t) => t.id === field.value)
+                                ?.emblem_url ? (
+                                <img
+                                  src={
+                                    otherTeams?.find(
+                                      (t) => t.id === field.value
+                                    )?.emblem_url
+                                  }
+                                  alt="팀 엠블럼"
+                                  className="w-8 h-8 mr-2 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 mr-2 rounded-full bg-gray-200 flex items-center justify-center">
+                                  {otherTeams
+                                    ?.find((t) => t.id === field.value)
+                                    ?.name.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-medium">
+                                  {
+                                    otherTeams?.find(
+                                      (t) => t.id === field.value
+                                    )?.name
+                                  }
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {
+                                    otherTeams?.find(
+                                      (t) => t.id === field.value
+                                    )?.city
+                                  }{" "}
+                                  {
+                                    otherTeams?.find(
+                                      (t) => t.id === field.value
+                                    )?.gu
+                                  }
+                                </div>
                               </div>
-                            ) : (
-                              otherTeams?.map((team) => (
-                                <SelectItem key={team.id} value={team.id}>
-                                  {team.name}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="ml-auto"
+                                onClick={() => field.onChange("")}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1031,7 +1177,7 @@ export default function CreateMatchPage() {
                 />
 
                 {/* 경기 유형 */}
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="competition_type"
                   render={({ field }) => (
@@ -1055,36 +1201,7 @@ export default function CreateMatchPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
-
-                {/* 홈/원정 선택 */}
-                <FormField
-                  control={form.control}
-                  name="is_home"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>홈/원정</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "home")
-                        }
-                        defaultValue={field.value ? "home" : "away"}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="홈/원정 선택" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="home">홈</SelectItem>
-                          <SelectItem value="away">원정</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                /> */}
 
                 {/* 경기 방식 */}
                 {/* <FormField

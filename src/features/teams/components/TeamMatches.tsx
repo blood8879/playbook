@@ -84,6 +84,7 @@ export function TeamMatches({
     // 실제로는 match_attendances 테이블에서 가져와야 함
     const participants_count = 0;
 
+    // 원본 match 객체의 모든 속성을 유지하면서 새 속성 추가
     return {
       ...match,
       status,
@@ -126,9 +127,23 @@ export function TeamMatches({
                         )}
                       </div>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(match.status)}>
-                      {getStatusText(match.status)}
-                    </Badge>
+                    <div className="flex flex-col gap-2 items-end">
+                      {/* <Badge variant={getStatusBadgeVariant(match.status)}>
+                        {getStatusText(match.status)}
+                      </Badge> */}
+                      <Badge
+                        variant={
+                          (match as any).is_home ? "default" : "secondary"
+                        }
+                        className={
+                          (match as any).is_home
+                            ? "bg-green-500"
+                            : "bg-orange-500"
+                        }
+                      >
+                        {(match as any).is_home ? "홈" : "원정"}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
