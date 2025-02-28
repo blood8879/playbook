@@ -68,9 +68,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { MatchGoalForm } from "@/features/teams/components/MatchGoalForm";
-import { MatchAssistForm } from "@/features/teams/components/MatchAssistForm";
-import { MatchMomForm } from "@/features/teams/components/MatchMomForm";
 
 /**
  * @ai_context
@@ -111,8 +108,8 @@ export default function MatchDetailPage() {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
-    staleTime: 0,
-    refetchOnMount: true,
+    staleTime: 0, // 캐시된 데이터를 항상 "오래된" 것으로 간주하여 새로 조회하도록 함
+    refetchOnMount: true, // 컴포넌트가 마운트될 때마다 데이터 다시 조회
   });
 
   // 참석 상태별 인원 계산
@@ -501,6 +498,24 @@ export default function MatchDetailPage() {
     matchData?.is_tbd ||
     (!matchData?.opponent_team_id && !matchData?.opponent_guest_team_id);
 
+  // 페이지 로드 시 데이터 새로고침
+  useEffect(() => {
+    if (matchId) {
+      // 페이지가 마운트될 때 모든 관련 데이터를 다시 가져옴
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({
+        queryKey: ["matchAttendanceList", matchId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["matchAttendance", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchGoals", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchAssists", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchMom", matchId] });
+
+      // 참석 현황 데이터 수동 새로고침
+      refetchAttendanceList();
+    }
+  }, [matchId, queryClient, refetchAttendanceList]);
+
   // 디버깅용 로그
   useEffect(() => {
     if (matchData) {
@@ -655,22 +670,6 @@ export default function MatchDetailPage() {
                 </Button>
               )}
             </div>
-            {/* 디버깅 정보 */}
-            {/* {process.env.NODE_ENV === "development" && (
-              <div className="mt-4 text-xs text-gray-500 border-t pt-2">
-                <p>디버깅 정보:</p>
-                <p>is_tbd: {matchData.is_tbd ? "true" : "false"}</p>
-                <p>opponent_team_id: {matchData.opponent_team_id || "없음"}</p>
-                <p>
-                  opponent_guest_team_id:{" "}
-                  {matchData.opponent_guest_team_id || "없음"}
-                </p>
-                <p>
-                  isOpponentTeamUndecided:{" "}
-                  {isOpponentTeamUndecided ? "true" : "false"}
-                </p>
-              </div>
-            )} */}
           </div>
         </div>
       )}
@@ -1064,7 +1063,9 @@ export default function MatchDetailPage() {
                 ?.filter(
                   (a) =>
                     a.status === "attending" &&
-                    a.team_id === matchData?.team?.id
+                    (a.team_id === matchData?.team?.id ||
+                      // 팀 ID가 없으면 홈팀으로 간주할 수도 있음
+                      (!a.team_id && matchData?.is_home))
                 )
                 .map((attendance) => (
                   <span
@@ -1074,6 +1075,13 @@ export default function MatchDetailPage() {
                     {attendance.profiles?.name || attendance.profiles?.email}
                   </span>
                 ))}
+              {/* 디버깅용 - 참석자 수가 없으면 메시지 표시 */}
+              {attendanceList?.filter((a) => a.status === "attending")
+                .length === 0 && (
+                <span className="text-xs text-gray-500">
+                  참석자가 없습니다.
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1123,7 +1131,9 @@ export default function MatchDetailPage() {
                 ?.filter(
                   (a) =>
                     a.status === "attending" &&
-                    (a.team_id === matchData?.opponent_team?.id || !a.team_id)
+                    (a.team_id === matchData?.opponent_team?.id ||
+                      // 팀 ID가 없는 경우 원정팀으로 간주할 수도 있음
+                      (!a.team_id && !matchData?.is_home))
                 )
                 .map((attendance) => (
                   <span
@@ -1135,6 +1145,17 @@ export default function MatchDetailPage() {
                       "알 수 없는 사용자"}
                   </span>
                 ))}
+              {/* 디버깅용 - 참석자 수가 없으면 메시지 표시 */}
+              {attendanceList?.filter(
+                (a) =>
+                  a.status === "attending" &&
+                  (a.team_id === matchData?.opponent_team?.id ||
+                    (!a.team_id && !matchData?.is_home))
+              ).length === 0 && (
+                <span className="text-xs text-gray-500">
+                  참석자가 없습니다.
+                </span>
+              )}
             </div>
           </div>
         </div>

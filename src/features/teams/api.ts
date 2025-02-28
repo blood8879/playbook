@@ -619,6 +619,8 @@ export async function getMatchAttendanceList(
   })) as MatchAttendance[];
 }
 
+// src/features/teams/api.ts 파일에서 updateMatchResult 함수 수정
+
 export async function updateMatchResult(
   supabase: SupabaseClient,
   matchId: string,
@@ -639,12 +641,22 @@ export async function updateMatchResult(
 
     // 2. 참석 상태 업데이트
     const attendancePromises = Object.entries(playerStats).map(
-      ([userId, stats]: [string, any]) =>
-        supabase.from("match_attendance").upsert({
-          match_id: matchId,
-          user_id: userId,
-          status: stats.attendance,
-        })
+      async ([userId, stats]: [string, any]) => {
+        // 참석 상태 업데이트를 별도 호출로 분리하여 처리
+        const { error } = await supabase.from("match_attendance").upsert(
+          {
+            match_id: matchId,
+            user_id: userId,
+            status: stats.attendance,
+          },
+          { onConflict: "match_id,user_id" }
+        );
+
+        if (error) {
+          console.error("참석 상태 업데이트 오류:", error);
+        }
+        return { userId, status: stats.attendance };
+      }
     );
 
     // 3. 스코어 설정 (폼에서 계산된 값 사용)
