@@ -26,7 +26,7 @@ export function MatchTimeline({
 
   // 상대팀이 미정인지 확인
   const isOpponentTeamUndecided =
-    !match?.opponent_team?.id || !match?.opponent_team?.name;
+    !match?.opponent_team?.id && !match?.opponent_guest_team?.id;
 
   // 직접 골 데이터를 가져옵니다 (profiles 조인 없이)
   const { data: matchGoals, isLoading: isGoalsLoading } = useQuery({
@@ -222,7 +222,10 @@ export function MatchTimeline({
               />
             ) : (
               <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
-                {isOpponentTeamUndecided ? "?" : match.opponent_team?.name?.[0]}
+                {isOpponentTeamUndecided
+                  ? "?"
+                  : match.opponent_team?.name?.[0] ||
+                    match.opponent_guest_team?.name?.[0]}
               </div>
             )}
           </div>

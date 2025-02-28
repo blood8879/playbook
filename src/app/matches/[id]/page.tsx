@@ -111,6 +111,8 @@ export default function MatchDetailPage() {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   // 참석 상태별 인원 계산
