@@ -58,7 +58,10 @@ export function TeamSchedule({
                 ? "상대팀 미정"
                 : match.opponent_team?.name || match.opponent_guest_team?.name}
             </div>
-            <div className="text-sm text-gray-500">{match.venue}</div>
+            {/* <div className="text-sm text-gray-500">{match.venue}</div> */}
+            <div className="text-sm text-gray-500">
+              {match.stadium?.name || "장소 미정"}
+            </div>
             <div className="text-sm text-gray-500">
               {match.competition_type === "friendly"
                 ? "친선전"

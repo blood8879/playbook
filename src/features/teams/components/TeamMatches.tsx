@@ -70,8 +70,11 @@ export function TeamMatches({
 
   console.log("matches", matches);
 
+  // 완료되지 않은 경기만 필터링
+  const upcomingMatches = matches.filter((match) => !match.is_finished);
+
   // 경기 상태 및 참가자 수 계산
-  const processedMatches = matches.map((match) => {
+  const processedMatches = upcomingMatches.map((match) => {
     // 경기 상태 계산
     let status = "scheduled";
     if (match.is_finished) {
@@ -100,7 +103,7 @@ export function TeamMatches({
     <div>
       {processedMatches.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500 mb-4">등록된 경기 일정이 없습니다.</p>
+          <p className="text-gray-500 mb-4">예정된 경기 일정이 없습니다.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -155,11 +158,6 @@ export function TeamMatches({
                     <Users className="w-4 h-4 mr-1" />
                     {match.participants_count || 0}명 참가
                   </div>
-                  {match.is_finished && (
-                    <div className="mt-2 text-lg font-semibold">
-                      {match.home_score} : {match.away_score}
-                    </div>
-                  )}
                 </CardContent>
               </Link>
             </Card>
