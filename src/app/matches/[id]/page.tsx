@@ -11,6 +11,7 @@ import {
   getMatchAttendanceList,
   getHeadToHeadStats,
   getLastMatchesOfTeam,
+  getLastMatchesBetweenTeams,
 } from "@/features/teams/api";
 import { TeamMatch } from "@/features/teams/types/index";
 import { Button } from "@/components/ui/button";
@@ -206,13 +207,26 @@ export default function MatchDetailPage() {
   // 최근 상대전적
   const { data: recentMeetings } = useQuery({
     queryKey: ["recentMeetings", matchId],
-    queryFn: () =>
-      getLastMatchesOfTeam(supabase, matchData.team?.id || "", {
+    queryFn: () => {
+      const teamId = matchData.team?.id || "";
+      const opponentId =
+        matchData.opponent_team?.id || matchData.opponent_guest_team?.id || "";
+
+      console.log("최근 상대전적 쿼리 파라미터:", {
+        teamId,
+        opponentId,
+        isGuestTeam:
+          !matchData.opponent_team_id && !!matchData.opponent_guest_team_id,
+      });
+
+      return getLastMatchesBetweenTeams(supabase, teamId, opponentId, {
         isFinished: true,
-      }),
+      });
+    },
     enabled:
       !!matchData?.team?.id &&
-      !!matchData?.opponent_team?.id &&
+      (!!matchData?.opponent_team?.id ||
+        !!matchData?.opponent_guest_team?.id) &&
       !matchData.is_tbd,
   });
 
@@ -885,19 +899,41 @@ export default function MatchDetailPage() {
                   <h2 className="text-lg font-semibold mb-4">최근 상대전적</h2>
                   {recentMeetings && recentMeetings.length > 0 ? (
                     <div className="space-y-3">
-                      {recentMeetings.map((match) => (
-                        <div
-                          key={match.id}
-                          className="flex items-center justify-between p-2 border-b"
-                        >
-                          <div className="text-sm">
-                            {format(new Date(match.match_date), "yyyy.MM.dd")}
+                      {recentMeetings.map((match) => {
+                        // 우리팀이 홈팀인지 확인
+                        const isOurTeamHome =
+                          match.team_id === matchData.team?.id;
+
+                        // 상대팀 정보 가져오기 (등록팀 또는 게스트팀)
+                        const opponentName = isOurTeamHome
+                          ? match.opponent_team?.name ||
+                            match.opponent_guest_team?.name ||
+                            "상대팀"
+                          : match.team?.name || "우리팀";
+
+                        // 우리팀 스코어와 상대팀 스코어 결정
+                        const ourScore = isOurTeamHome
+                          ? match.home_score
+                          : match.away_score;
+                        const theirScore = isOurTeamHome
+                          ? match.away_score
+                          : match.home_score;
+
+                        return (
+                          <div
+                            key={match.id}
+                            className="flex items-center justify-between p-2 border-b"
+                          >
+                            <div className="text-sm">
+                              {format(new Date(match.match_date), "yyyy.MM.dd")}
+                            </div>
+                            <div className="font-bold">
+                              {matchData.team?.name} {ourScore} - {theirScore}{" "}
+                              {opponentName}
+                            </div>
                           </div>
-                          <div className="font-bold">
-                            {match.home_score} - {match.away_score}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center text-gray-500">

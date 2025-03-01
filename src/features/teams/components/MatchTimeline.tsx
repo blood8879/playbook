@@ -187,11 +187,13 @@ export function MatchTimeline({
               />
             ) : (
               <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
-                {match.team?.name?.[0]}
+                {match.team?.name?.[0] || "?"}
               </div>
             )}
           </div>
-          <div className="text-lg font-semibold">{match.team?.name}</div>
+          <div className="text-lg font-semibold">
+            {match.team?.name || "홈팀"}
+          </div>
         </div>
 
         <div className="text-center">
@@ -211,7 +213,9 @@ export function MatchTimeline({
           <div className="text-lg font-semibold text-right">
             {isOpponentTeamUndecided
               ? "미정"
-              : match.opponent_team?.name || match.opponent_guest_team?.name}
+              : match.opponent_team?.name ||
+                match.opponent_guest_team?.name ||
+                "상대팀"}
           </div>
           <div className="w-16 h-16 relative">
             {!isOpponentTeamUndecided && match.opponent_team?.emblem_url ? (
@@ -225,7 +229,8 @@ export function MatchTimeline({
                 {isOpponentTeamUndecided
                   ? "?"
                   : match.opponent_team?.name?.[0] ||
-                    match.opponent_guest_team?.name?.[0]}
+                    match.opponent_guest_team?.name?.[0] ||
+                    "?"}
               </div>
             )}
           </div>

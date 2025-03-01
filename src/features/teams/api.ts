@@ -587,6 +587,49 @@ export async function getLastMatchesOfTeam(
   return data;
 }
 
+// 양팀간 최근 5전 성적
+export async function getLastMatchesBetweenTeams(
+  supabase: SupabaseClient,
+  teamAId: string,
+  teamBId: string,
+  options?: { isFinished?: boolean }
+) {
+  console.log("최근 상대전적 조회 시작:", { teamAId, teamBId });
+
+  // 모든 가능한 매치 조합 쿼리 (등록팀과 게스트팀 모두 고려)
+  const query = supabase
+    .from("matches")
+    .select(
+      `
+      *,
+      team:teams!matches_team_id_fkey(*),
+      opponent_team:teams!matches_opponent_team_id_fkey(*),
+      opponent_guest_team:guest_clubs(*)
+    `
+    )
+    .or(
+      `and(team_id.eq.${teamAId},opponent_team_id.eq.${teamBId}),` +
+        `and(team_id.eq.${teamBId},opponent_team_id.eq.${teamAId}),` +
+        `and(team_id.eq.${teamAId},opponent_guest_team_id.eq.${teamBId}),` +
+        `and(team_id.eq.${teamBId},opponent_guest_team_id.eq.${teamAId})`
+    )
+    .order("match_date", { ascending: false })
+    .limit(5);
+
+  if (options?.isFinished) {
+    query.eq("is_finished", true);
+  }
+
+  const { data, error } = await query;
+  console.log("최근 상대전적 결과:", data);
+
+  if (error) {
+    console.error("최근 상대전적 조회 오류:", error);
+    throw error;
+  }
+
+  return data;
+}
 /**
  * match attendance
  */
