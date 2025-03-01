@@ -10,7 +10,6 @@ import {
   setMatchAttendance,
   getMatchAttendanceList,
   getHeadToHeadStats,
-  getLastMatchesBetweenTeams,
   getLastMatchesOfTeam,
 } from "@/features/teams/api";
 import { TeamMatch } from "@/features/teams/types/index";
@@ -32,7 +31,7 @@ import {
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Image from "next/image";
-import { useTeamMemberRole } from "@/features/teams/hooks/useTeamMemberRole";
+
 import { MatchTimeline } from "@/features/teams/components/MatchTimeline";
 import { UpdateOpponent } from "@/features/teams/components/UpdateOpponent";
 
@@ -45,29 +44,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 /**
  * @ai_context
@@ -184,33 +160,56 @@ export default function MatchDetailPage() {
     updateAttendance(status); // Supabase DB 업데이트
   };
 
+  // 디버깅을 위한 로그
+  useEffect(() => {
+    console.log("Head-to-Head 의존성 확인:", {
+      teamId: matchData?.team_id,
+      opponentTeamId: matchData?.opponent_team_id,
+      isTbd: matchData?.is_tbd,
+      shouldFetch:
+        !!matchData?.team_id &&
+        !!matchData?.opponent_team_id &&
+        !matchData.is_tbd,
+    });
+  }, [matchData?.team_id, matchData?.opponent_team_id, matchData?.is_tbd]);
+
   // Head to Head 통계
   const { data: headToHead, isLoading: isHeadToHeadLoading } = useQuery({
-    queryKey: ["headToHead", matchData?.team_id, matchData?.opponent_team_id],
-    queryFn: () =>
-      getHeadToHeadStats(
+    queryKey: [
+      "headToHead",
+      matchData?.team_id,
+      matchData?.opponent_team_id,
+      matchData?.opponent_guest_team_id,
+    ],
+    queryFn: async () => {
+      const opponentId =
+        matchData?.opponent_team_id || matchData?.opponent_guest_team_id;
+      console.log("Head-to-Head 쿼리 실행 파라미터:", {
+        teamA: matchData?.team_id,
+        teamB: opponentId,
+        isGuestTeam:
+          !matchData?.opponent_team_id && !!matchData?.opponent_guest_team_id,
+      });
+
+      return getHeadToHeadStats(
         supabase,
         matchData?.team_id || "",
-        matchData?.opponent_team_id || ""
-      ),
+        opponentId || ""
+      );
+    },
     enabled:
       !!matchData?.team_id &&
-      !!matchData?.opponent_team_id &&
-      !matchData.is_tbd,
+      (!!matchData?.opponent_team_id || !!matchData?.opponent_guest_team_id) &&
+      !matchData?.is_tbd,
   });
 
   // 최근 상대전적
   const { data: recentMeetings } = useQuery({
     queryKey: ["recentMeetings", matchId],
     queryFn: () =>
-      getLastMatchesBetweenTeams(
-        supabase,
-        matchData.team?.id || "",
-        matchData.opponent_team?.id || "",
-        {
-          isFinished: true,
-        }
-      ),
+      getLastMatchesOfTeam(supabase, matchData.team?.id || "", {
+        isFinished: true,
+      }),
     enabled:
       !!matchData?.team?.id &&
       !!matchData?.opponent_team?.id &&
@@ -517,20 +516,6 @@ export default function MatchDetailPage() {
     }
   }, [matchId, queryClient, refetchAttendanceList]);
 
-  // 디버깅용 로그
-  useEffect(() => {
-    if (matchData) {
-      console.log("매치 데이터 로드됨:", {
-        id: matchData.id,
-        is_tbd: matchData.is_tbd,
-        opponent_team_id: matchData.opponent_team_id,
-        opponent_guest_team_id: matchData.opponent_guest_team_id,
-        isOpponentTeamUndecided,
-        is_finished: matchData.is_finished,
-      });
-    }
-  }, [matchData, isOpponentTeamUndecided]);
-
   // 날짜 포맷 함수
   const formatMatchDate = (dateString: string) => {
     try {
@@ -715,7 +700,11 @@ export default function MatchDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-semibold">
-                        {matchData.opponent_team?.name || "게스트팀"}
+                        {matchData.is_tbd
+                          ? "상대팀 미정"
+                          : matchData.opponent_team?.name ||
+                            matchData.opponent_guest_team?.name ||
+                            "게스트팀"}
                       </span>
                       {matchData.opponent_team?.emblem_url ? (
                         <Image

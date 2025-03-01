@@ -465,8 +465,30 @@ export const getHeadToHeadStats = async (
   teamAId: string,
   teamBId: string
 ): Promise<HeadToHeadStats> => {
-  // 임시로 더미 데이터 반환
-  return {
+  console.log("getHeadToHeadStats 호출:", { teamAId, teamBId });
+
+  // 게스트 팀 ID와의 매치도 고려
+  const { data: matches, error } = await supabase
+    .from("matches")
+    .select("*")
+    .or(
+      `and(team_id.eq.${teamAId},opponent_team_id.eq.${teamBId}),` +
+        `and(team_id.eq.${teamBId},opponent_team_id.eq.${teamAId}),` +
+        `and(team_id.eq.${teamAId},opponent_guest_team_id.eq.${teamBId}),` +
+        `and(team_id.eq.${teamBId},opponent_guest_team_id.eq.${teamAId})`
+    )
+    .eq("is_finished", true);
+
+  console.log("조회된 head-to-head 매치:", matches);
+
+  if (error) {
+    console.error("Head-to-Head 매치 조회 오류:", error);
+    throw error;
+  }
+
+  // 통계 초기화 및 계산 로직
+  const stats: HeadToHeadStats = {
+    // (기존 코드와 동일)
     teamAWins: 0,
     teamBWins: 0,
     draws: 0,
@@ -477,33 +499,69 @@ export const getHeadToHeadStats = async (
     teamBAwayWins: 0,
     awayDraws: 0,
   };
-};
 
-/**
- * get last N matches between two teams
- */
-export async function getLastMatchesBetweenTeams(
-  supabase: SupabaseClient,
-  teamAId: string,
-  teamBId: string,
-  options?: { isFinished?: boolean }
-) {
-  const query = supabase
-    .from("matches")
-    .select("*")
-    .or(`team_id.eq.${teamAId},opponent_team_id.eq.${teamAId}`)
-    .or(`team_id.eq.${teamBId},opponent_team_id.eq.${teamBId}`)
-    .order("match_date", { ascending: false })
-    .limit(5);
-
-  if (options?.isFinished) {
-    query.eq("is_finished", true);
+  // (기존 코드와 동일)
+  if (!matches || matches.length === 0) {
+    return stats;
   }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
-}
+  // 매치 처리 로직
+  matches.forEach((match) => {
+    // (기존 코드와 동일하나 게스트 팀 ID도 고려)
+    const involvesTeamA =
+      match.team_id === teamAId ||
+      match.opponent_team_id === teamAId ||
+      match.opponent_guest_team_id === teamAId;
+
+    const involvesTeamB =
+      match.team_id === teamBId ||
+      match.opponent_team_id === teamBId ||
+      match.opponent_guest_team_id === teamBId;
+
+    if (!involvesTeamA || !involvesTeamB) {
+      return;
+    }
+
+    // 팀 A가 홈인지 확인 (팀 A가 팀 ID와 일치하는지)
+    const isTeamAHome = match.team_id === teamAId;
+
+    // 스코어 처리 및 통계 계산
+    const homeScore = match.home_score || 0;
+    const awayScore = match.away_score || 0;
+
+    // (기존 결과 처리 로직과 동일)
+    if (homeScore > awayScore) {
+      // 홈팀 승리
+      if (isTeamAHome) {
+        stats.teamAWins++;
+        stats.teamAHomeWins++;
+      } else {
+        stats.teamBWins++;
+        stats.teamBHomeWins++;
+      }
+    } else if (homeScore < awayScore) {
+      // 원정팀 승리
+      if (isTeamAHome) {
+        stats.teamBWins++;
+        stats.teamBAwayWins++;
+      } else {
+        stats.teamAWins++;
+        stats.teamAAwayWins++;
+      }
+    } else {
+      // 무승부
+      stats.draws++;
+      if (isTeamAHome) {
+        stats.homeDraws++;
+      } else {
+        stats.awayDraws++;
+      }
+    }
+  });
+
+  console.log("계산된 head-to-head 통계:", stats);
+  return stats;
+};
 
 /**
  * get last N matches of a team
