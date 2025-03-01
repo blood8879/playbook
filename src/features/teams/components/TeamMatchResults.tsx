@@ -51,6 +51,7 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
         .select(
           `
           *,
+          team:team_id(*),
           opponent_team:opponent_team_id(*),
           opponent_guest_team:opponent_guest_team_id(*)
         `
@@ -68,18 +69,44 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
   const { data: goals = [] } = useQuery({
     queryKey: ["matchGoals", selectedMatchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("match_goals")
-        .select(
-          `
-          *,
-          profiles:user_id(id, name, email)
-        `
-        )
-        .eq("match_id", selectedMatchId);
+      if (!selectedMatchId) return [];
 
-      if (error) throw error;
-      return data;
+      try {
+        // First fetch just the goals without the join
+        const { data, error } = await supabase
+          .from("match_goals")
+          .select("*")
+          .eq("match_id", selectedMatchId);
+
+        if (error) {
+          console.error("Error fetching match goals:", error);
+          return [];
+        }
+
+        if (data.length === 0) return [];
+
+        // Then separately fetch profiles for the user_ids
+        const userIds = [...new Set(data.map((goal) => goal.user_id))];
+
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, name, email")
+          .in("id", userIds);
+
+        if (profilesError) {
+          console.error("Error fetching profiles for goals:", profilesError);
+          return data; // Return goals without profiles
+        }
+
+        // Combine the data
+        return data.map((goal) => ({
+          ...goal,
+          profiles: profiles.find((profile) => profile.id === goal.user_id),
+        }));
+      } catch (error) {
+        console.error("Exception fetching match goals:", error);
+        return [];
+      }
     },
     enabled: !!selectedMatchId,
   });
@@ -88,18 +115,44 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
   const { data: assists = [] } = useQuery({
     queryKey: ["matchAssists", selectedMatchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("match_assists")
-        .select(
-          `
-          *,
-          profiles:user_id(id, name, email)
-        `
-        )
-        .eq("match_id", selectedMatchId);
+      if (!selectedMatchId) return [];
 
-      if (error) throw error;
-      return data;
+      try {
+        // First fetch just the assists without the join
+        const { data, error } = await supabase
+          .from("match_assists")
+          .select("*")
+          .eq("match_id", selectedMatchId);
+
+        if (error) {
+          console.error("Error fetching match assists:", error);
+          return [];
+        }
+
+        if (data.length === 0) return [];
+
+        // Then separately fetch profiles
+        const userIds = [...new Set(data.map((assist) => assist.user_id))];
+
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, name, email")
+          .in("id", userIds);
+
+        if (profilesError) {
+          console.error("Error fetching profiles for assists:", profilesError);
+          return data; // Return assists without profiles
+        }
+
+        // Combine the data
+        return data.map((assist) => ({
+          ...assist,
+          profiles: profiles.find((profile) => profile.id === assist.user_id),
+        }));
+      } catch (error) {
+        console.error("Exception fetching match assists:", error);
+        return [];
+      }
     },
     enabled: !!selectedMatchId,
   });
@@ -108,19 +161,44 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
   const { data: mom } = useQuery({
     queryKey: ["matchMom", selectedMatchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("match_mom")
-        .select(
-          `
-          *,
-          profiles:user_id(id, name, email)
-        `
-        )
-        .eq("match_id", selectedMatchId)
-        .single();
+      if (!selectedMatchId) return null;
 
-      if (error && error.code !== "PGRST116") throw error;
-      return data;
+      try {
+        // First fetch just the MOM without the join
+        const { data, error } = await supabase
+          .from("match_mom")
+          .select("*")
+          .eq("match_id", selectedMatchId)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error fetching match MOM:", error);
+          return null;
+        }
+
+        if (!data) return null;
+
+        // Then fetch the profile
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, name, email")
+          .eq("id", data.user_id)
+          .single();
+
+        if (profileError) {
+          console.error("Error fetching profile for MOM:", profileError);
+          return data; // Return MOM without profile
+        }
+
+        // Combine the data
+        return {
+          ...data,
+          profiles: profile,
+        };
+      } catch (error) {
+        console.error("Exception fetching match MOM:", error);
+        return null;
+      }
     },
     enabled: !!selectedMatchId,
   });
