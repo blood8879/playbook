@@ -146,6 +146,8 @@ export default function ProfilePage() {
     );
   }
 
+  console.log("profile", profile);
+
   return (
     <div className="container py-8 max-w-3xl mx-auto">
       <Card>
@@ -168,17 +170,32 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                <Avatar className="w-24 h-24">
-                  <AvatarImage
-                    src={profile.avatar_url || ""}
-                    alt={profile.name || "사용자"}
-                  />
-                  <AvatarFallback className="text-2xl">
+                <div className="relative w-24 h-24">
+                  {profile.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.name || "사용자"}
+                      className="w-full h-full rounded-full object-cover"
+                      onError={(e) => {
+                        console.error("이미지 로드 실패:", profile.avatar_url);
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.setAttribute(
+                          "style",
+                          "display: flex"
+                        );
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className={`${
+                      profile.avatar_url ? "hidden" : "flex"
+                    } w-24 h-24 rounded-full bg-primary/10 items-center justify-center text-2xl font-semibold text-primary`}
+                  >
                     {profile.name?.charAt(0) ||
                       profile.user_name?.charAt(0) ||
                       "U"}
-                  </AvatarFallback>
-                </Avatar>
+                  </div>
+                </div>
 
                 <div className="flex-1 space-y-2 text-center sm:text-left">
                   <h2 className="text-2xl font-semibold">

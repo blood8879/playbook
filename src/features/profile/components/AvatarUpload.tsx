@@ -22,6 +22,7 @@ export function AvatarUpload({
   const { supabase, user } = useSupabase();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(currentAvatarUrl);
   const { toast } = useToast();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,6 +51,10 @@ export function AvatarUpload({
       return;
     }
 
+    // 파일 미리보기 생성
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
     try {
       setIsUploading(true);
       const avatarUrl = await uploadAvatar(supabase, user.id, file);
@@ -71,6 +76,8 @@ export function AvatarUpload({
           : "프로필 이미지 업로드 중 오류가 발생했습니다.",
         variant: "destructive",
       });
+      // 업로드 실패 시 미리보기 이미지를 이전 이미지로 복원
+      setPreviewUrl(currentAvatarUrl);
     } finally {
       setIsUploading(false);
     }
@@ -94,7 +101,7 @@ export function AvatarUpload({
 
       <div className="relative group">
         <Avatar className="w-24 h-24">
-          <AvatarImage src={currentAvatarUrl || ""} alt={name || "프로필"} />
+          <AvatarImage src={previewUrl || ""} alt={name || "프로필"} />
           <AvatarFallback className="text-2xl">{nameFallback}</AvatarFallback>
         </Avatar>
 

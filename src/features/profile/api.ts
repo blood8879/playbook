@@ -75,7 +75,7 @@ export async function updateProfile(
   return data;
 }
 
-/**
+/*
  * 사용자 아바타(프로필 이미지)를 업로드합니다.
  */
 export async function uploadAvatar(
@@ -89,19 +89,19 @@ export async function uploadAvatar(
   const fileName = `${Date.now()}_${userId}.${fileExt}`;
   const filePath = `avatars/${fileName}`;
 
-  // 팀 페이지와 동일한 공개 버킷 사용
+  // 아바타 이미지 버킷에 업로드
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(filePath, file);
 
-  console.log("uploadError", uploadError);
   if (uploadError) {
     console.error("아바타 업로드 오류:", uploadError);
     throw uploadError;
   }
 
-  // 업로드된 파일의 공개 URL 가져오기
-  const { data } = supabase.storage.from("public").getPublicUrl(filePath);
+  // 올바른 버킷에서 URL 가져오기
+  const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
   const avatarUrl = data.publicUrl;
 
   // 프로필 정보 업데이트
