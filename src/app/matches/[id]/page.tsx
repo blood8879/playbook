@@ -108,8 +108,9 @@ export default function MatchDetailPage() {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
-    staleTime: 0, // 캐시된 데이터를 항상 "오래된" 것으로 간주하여 새로 조회하도록 함
-    refetchOnMount: true, // 컴포넌트가 마운트될 때마다 데이터 다시 조회
+    staleTime: 0, // 항상 최신 데이터 요청
+    refetchOnMount: true, // 컴포넌트 마운트 시 항상 재조회
+    refetchOnWindowFocus: true, // 윈도우 포커스 시 재조회
   });
 
   // 참석 상태별 인원 계산

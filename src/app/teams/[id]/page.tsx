@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useSupabase } from "@/lib/supabase/client";
 import { TeamDetailSkeleton } from "@/features/teams/components/TeamDetailSkeleton";
@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
 import { getTeamById as fetchTeamById } from "@/features/teams/api";
-import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam"; /* We'll create this helper (see below) */
+import { getAllMatchesForTeam } from "@/features/teams/lib/getAllMatchesForTeam";
 import { TeamMatchResults } from "@/features/teams/components/TeamMatchResults";
 
 export default function TeamDetailPage() {
@@ -24,6 +24,7 @@ export default function TeamDetailPage() {
   const { supabase, user } = useSupabase();
   const teamId = params.id as string;
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // 팀 정보 조회
   const {
@@ -62,7 +63,13 @@ export default function TeamDetailPage() {
     queryKey: ["teamMatches", teamId],
     queryFn: () => getAllMatchesForTeam(supabase, teamId),
     enabled: !!teamId,
+    refetchOnMount: true, // 컴포넌트 마운트 시 항상 데이터 새로고침
+    staleTime: 0, // 데이터를 항상 stale로 취급하여 자동 리페치
   });
+
+  const handleCreateMatch = () => {
+    router.push(`/matches/new?team=${teamId}`);
+  };
 
   if ((!team && !isTeamLoading) || isTeamError) {
     return (
@@ -146,9 +153,7 @@ export default function TeamDetailPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">경기 일정</h2>
                 {canManageMatches && (
-                  <Button
-                    onClick={() => router.push(`/matches/new?team=${teamId}`)}
-                  >
+                  <Button onClick={handleCreateMatch}>
                     <Plus className="w-4 h-4 mr-2" />
                     경기 생성
                   </Button>

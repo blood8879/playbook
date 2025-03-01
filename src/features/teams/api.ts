@@ -561,17 +561,40 @@ export async function setMatchAttendance(
   userId: string,
   status: "attending" | "absent" | "maybe"
 ) {
-  // use onConflict for proper upsert
-  const { error } = await supabase.from("match_attendance").upsert(
-    {
-      match_id: matchId,
-      user_id: userId,
-      status,
-    },
-    { onConflict: "match_id,user_id" }
+  console.log(
+    `참석 상태 업데이트: 매치 ${matchId}, 유저 ${userId}, 상태 ${status}`
   );
 
-  if (error) throw error;
+  try {
+    // 먼저 기존 엔트리 삭제 (중복 방지)
+    const { error: deleteError } = await supabase
+      .from("match_attendance")
+      .delete()
+      .eq("match_id", matchId)
+      .eq("user_id", userId);
+
+    if (deleteError) {
+      console.error("기존 참석 정보 삭제 중 오류:", deleteError);
+    }
+
+    // 새 엔트리 추가
+    const { data, error } = await supabase.from("match_attendance").insert({
+      match_id: matchId,
+      user_id: userId,
+      status: status,
+    });
+
+    if (error) {
+      console.error("참석 정보 추가 중 오류:", error);
+      throw error;
+    }
+
+    console.log("참석 상태 업데이트 완료:", status);
+    return data;
+  } catch (error) {
+    console.error("참석 상태 업데이트 중 예외 발생:", error);
+    throw error;
+  }
 }
 
 export interface MatchAttendanceCount {
@@ -642,22 +665,39 @@ export async function updateMatchResult(
     // 2. 참석 상태 업데이트
     const attendancePromises = Object.entries(playerStats).map(
       async ([userId, stats]: [string, any]) => {
-        // 참석 상태 업데이트를 별도 호출로 분리하여 처리
-        const { error } = await supabase.from("match_attendance").upsert(
-          {
-            match_id: matchId,
-            user_id: userId,
-            status: stats.attendance,
-          },
-          { onConflict: "match_id,user_id" }
+        console.log(
+          `결과 폼에서 참석 상태 업데이트: 유저 ${userId}, 상태 ${stats.attendance}`
         );
+
+        // 먼저 기존 참석 정보 삭제
+        const { error: deleteError } = await supabase
+          .from("match_attendance")
+          .delete()
+          .eq("match_id", matchId)
+          .eq("user_id", userId);
+
+        if (deleteError) {
+          console.error("기존 참석 정보 삭제 중 오류:", deleteError);
+        }
+
+        // 새 참석 상태 추가
+        const { error } = await supabase.from("match_attendance").insert({
+          match_id: matchId,
+          user_id: userId,
+          status: stats.attendance,
+        });
 
         if (error) {
           console.error("참석 상태 업데이트 오류:", error);
+          throw error;
         }
+
         return { userId, status: stats.attendance };
       }
     );
+
+    // 참석 업데이트가 완료될 때까지 기다림
+    const attendanceResults = await Promise.all(attendancePromises);
 
     // 3. 스코어 설정 (폼에서 계산된 값 사용)
     const homeScore = matchScore.homeScore;

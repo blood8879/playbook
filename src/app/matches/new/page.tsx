@@ -496,6 +496,13 @@ export default function CreateMatchPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["matches"] });
 
+      // 특정 팀의 경기 목록도 함께 갱신
+      if (selectedTeamId) {
+        queryClient.invalidateQueries({
+          queryKey: ["teamMatches", selectedTeamId],
+        });
+      }
+
       // 팀 ID가 있으면 해당 팀의 상세 페이지로 리다이렉트, 없으면 경기 상세 페이지로 이동
       if (selectedTeamId) {
         router.push(`/teams/${selectedTeamId}`);
