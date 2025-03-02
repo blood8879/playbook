@@ -1,15 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useSupabase } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import {
-  CalendarDays,
-  MapPin,
-  Users,
-  CalendarX,
-  CalendarCheck,
-} from "lucide-react";
+import { MapPin, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { TeamMatch } from "../types";
 import { format } from "date-fns";

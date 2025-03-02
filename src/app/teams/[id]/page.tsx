@@ -132,7 +132,7 @@ export default function TeamDetailPage() {
           </CardHeader>
           <CardContent>
             <TeamSchedule
-              matches={matches || []}
+              matches={(matches as any) || []}
               isLoading={isMatchesLoading}
               upcoming={true}
             />
@@ -160,7 +160,7 @@ export default function TeamDetailPage() {
                 )}
               </div>
               <TeamMatches
-                matches={matches || []}
+                matches={(matches as any) || []}
                 isLoading={isMatchesLoading}
                 teamId={teamId}
                 canManageMatches={canManageMatches}

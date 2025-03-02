@@ -146,8 +146,6 @@ export default function ProfilePage() {
     );
   }
 
-  console.log("profile", profile);
-
   return (
     <div className="container py-8 max-w-3xl mx-auto">
       <Card>
