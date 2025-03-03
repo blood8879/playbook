@@ -32,18 +32,18 @@ export function Header() {
           {user ? (
             <>
               <nav className="flex items-center space-x-4">
-                <Link href="/dashboard">
+                {/* <Link href="/dashboard">
                   <Button variant="ghost">대시보드</Button>
-                </Link>
+                </Link> */}
                 <Link href="/teams">
                   <Button variant="ghost">팀 관리</Button>
                 </Link>
-                <Link href="/matches">
+                {/* <Link href="/matches">
                   <Button variant="ghost">경기 관리</Button>
                 </Link>
                 <Link href="/leagues">
                   <Button variant="ghost">리그 관리</Button>
-                </Link>
+                </Link> */}
               </nav>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

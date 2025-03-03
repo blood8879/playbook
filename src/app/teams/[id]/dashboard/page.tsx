@@ -178,8 +178,8 @@ export default function TeamDashboardPage() {
           const isDraw = match.home_score === match.away_score;
 
           // 객체 접근 방식 수정
-          const opponentTeamName = match.opponent_team?.name;
-          const opponentGuestTeamName = match.opponent_guest_team?.name;
+          const opponentTeamName = match.opponent_team?.[0]?.name;
+          const opponentGuestTeamName = match.opponent_guest_team?.[0]?.name;
 
           return {
             ...match,

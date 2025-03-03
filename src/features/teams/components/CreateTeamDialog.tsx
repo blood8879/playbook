@@ -18,9 +18,13 @@ import { useToast } from "@/hooks/use-toast";
 
 interface CreateTeamDialogProps {
   onSuccess: () => void;
+  renderTrigger?: (openDialog: () => void) => React.ReactNode;
 }
 
-export function CreateTeamDialog({ onSuccess }: CreateTeamDialogProps) {
+export function CreateTeamDialog({
+  onSuccess,
+  renderTrigger,
+}: CreateTeamDialogProps) {
   const { supabase, user } = useSupabase();
   const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -55,6 +59,8 @@ export function CreateTeamDialog({ onSuccess }: CreateTeamDialogProps) {
     }
   };
 
+  const openDialog = () => setIsOpen(true);
+
   return (
     <Dialog
       open={isOpen}
@@ -64,7 +70,11 @@ export function CreateTeamDialog({ onSuccess }: CreateTeamDialogProps) {
       }}
     >
       <DialogTrigger asChild>
-        <Button onClick={() => setIsOpen(true)}>팀 생성</Button>
+        {renderTrigger ? (
+          renderTrigger(openDialog)
+        ) : (
+          <Button onClick={openDialog}>팀 생성</Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
