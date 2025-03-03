@@ -6,7 +6,12 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ["localhost", "localhost:3000", "picsum.photos"],
+    domains: [
+      "localhost",
+      "localhost:3000",
+      "picsum.photos",
+      "ffevpmcqgdeoyjpwnzng.supabase.co",
+    ],
   },
 };
 

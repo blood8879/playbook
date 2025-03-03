@@ -731,8 +731,8 @@ export async function getMatchAttendanceList(
     )
     .eq("match_id", matchId);
 
-  console.log("data", data);
-  console.log("error", error);
+  console.log("match attendance data", data);
+  console.log("match attendance error", error);
 
   if (error) throw error;
 

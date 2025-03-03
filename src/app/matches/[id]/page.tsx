@@ -495,7 +495,7 @@ export default function MatchDetailPage() {
       if (matchError) throw matchError;
     },
     onSuccess: () => {
-      router.push(`/teams/${matchData?.team_id}/matches`);
+      router.push(`/teams/${matchData?.team_id}`);
     },
     onError: (error) => {
       console.error("경기 삭제 중 오류:", error);
@@ -553,7 +553,10 @@ export default function MatchDetailPage() {
     return (
       <div className="container py-8">
         <p>경기를 찾을 수 없습니다.</p>
-        <Button variant="outline" onClick={() => router.push("/matches")}>
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/teams/${matchData?.team_id}`)}
+        >
           경기 목록으로 돌아가기
         </Button>
       </div>
