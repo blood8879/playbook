@@ -4,7 +4,8 @@ import "./globals.css";
 import Providers from "./providers";
 
 import { Toaster } from "@/components/ui/toaster";
-import { Header } from "@/components/layout/Header";
+import { Header } from "@/components/layout/navbar";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
