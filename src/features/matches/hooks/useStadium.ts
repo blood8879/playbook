@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 import { StadiumFormValues, stadiumFormSchema } from "../lib/schema";
 import { createStadium } from "../api";
@@ -33,12 +33,16 @@ export function useStadium(
 
   const handleSubmit = async (values: StadiumFormValues) => {
     try {
-      const stadium = await createStadium(values);
-      toast.success("경기장이 성공적으로 생성되었습니다.");
+      const stadium = await createStadium(values as any);
+      toast({
+        title: "경기장이 성공적으로 생성되었습니다.",
+      });
       onSaveCallback(stadium);
       return stadium;
     } catch (error) {
-      toast.error("경기장 생성 중 오류가 발생했습니다.");
+      toast({
+        title: "경기장 생성 중 오류가 발생했습니다.",
+      });
       console.error(error);
       return null;
     }

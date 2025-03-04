@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addDays, format, isAfter, isBefore, isSameDay } from "date-fns";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 import { ScheduleFormValues, scheduleFormSchema } from "../lib/schema";
 import { createSchedule, fetchStadiums, saveMatches } from "../api";
@@ -36,7 +36,10 @@ export function useSchedule(teamId: string) {
       const data = await fetchStadiums(teamId);
       setStadiums(data);
     } catch (error) {
-      toast.error("경기장 정보를 가져오는데 실패했습니다.");
+      toast({
+        title: "경기장 정보를 가져오는데 실패했습니다.",
+        description: "다시 시도해주세요.",
+      });
       console.error(error);
     }
   };
@@ -98,9 +101,13 @@ export function useSchedule(teamId: string) {
       }
 
       setGeneratedMatches(matches);
-      toast.success(`총 ${matches.length}개의 경기 일정이 생성되었습니다.`);
+      toast({
+        title: `총 ${matches.length}개의 경기 일정이 생성되었습니다.`,
+      });
     } catch (error) {
-      toast.error("경기 일정 생성 중 오류가 발생했습니다.");
+      toast({
+        title: "경기 일정 생성 중 오류가 발생했습니다.",
+      });
       console.error(error);
     } finally {
       setIsGenerating(false);
@@ -109,7 +116,9 @@ export function useSchedule(teamId: string) {
 
   const onSubmit = (values: ScheduleFormValues) => {
     if (isAfter(values.startDate, values.endDate)) {
-      toast.error("시작일이 종료일보다 늦을 수 없습니다.");
+      toast({
+        title: "시작일이 종료일보다 늦을 수 없습니다.",
+      });
       return;
     }
 
@@ -118,7 +127,9 @@ export function useSchedule(teamId: string) {
 
   const saveGeneratedMatches = async () => {
     if (!generatedMatches.length) {
-      toast.error("저장할 경기 일정이 없습니다.");
+      toast({
+        title: "저장할 경기 일정이 없습니다.",
+      });
       return;
     }
 
@@ -130,10 +141,14 @@ export function useSchedule(teamId: string) {
 
       await saveMatches(generatedMatches, createdSchedule.id);
 
-      toast.success("경기 일정이 성공적으로 저장되었습니다.");
+      toast({
+        title: "경기 일정이 성공적으로 저장되었습니다.",
+      });
       router.push("/matches");
     } catch (error) {
-      toast.error("경기 일정 저장 중 오류가 발생했습니다.");
+      toast({
+        title: "경기 일정 저장 중 오류가 발생했습니다.",
+      });
       console.error(error);
     } finally {
       setIsSaving(false);
