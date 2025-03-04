@@ -143,7 +143,7 @@ export function TeamMatches({
                 <CardContent>
                   <div className="flex items-center text-sm text-gray-500 mb-2">
                     <MapPin className="w-4 h-4 mr-1" />
-                    {match.stadium?.name} ({match.venue})
+                    {match.stadium?.name} ({match.stadium.address})
                   </div>
                   <div className="flex items-center text-sm text-gray-500">
                     <Users className="w-4 h-4 mr-1" />
