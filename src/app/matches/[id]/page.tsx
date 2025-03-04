@@ -74,6 +74,7 @@ export default function MatchDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["matchGoals", matchId] });
       queryClient.invalidateQueries({ queryKey: ["matchAssists", matchId] });
       queryClient.invalidateQueries({ queryKey: ["matchMom", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["matchStatistics", matchId] });
 
       // 참석 현황 데이터 수동 새로고침
       refetchAttendanceList();
