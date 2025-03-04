@@ -28,11 +28,7 @@ export function TeamSchedule({
     );
   }
 
-  let filteredMatches = matches;
-  if (upcoming) {
-    const now = new Date();
-    filteredMatches = matches.filter((m) => new Date(m.match_date) >= now);
-  }
+  const filteredMatches = matches.filter((m) => !m.is_finished);
 
   if (filteredMatches.length === 0) {
     return (

@@ -1,11 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useMatchForm } from "../hooks/useMatchForm";
+import { useMatchForm, useTeamSearch } from "../hooks/useMatchForm";
 import { StadiumCreationDialog } from "./StadiumCreationDialog";
 import { MatchFormValues } from "../lib/schemas";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import {
+  CalendarIcon,
+  Loader2,
+  Check,
+  ChevronsUpDown,
+  Search,
+  Shield,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +48,14 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 interface CreateMatchFormProps {
   userId: string;
@@ -57,6 +73,12 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
     onSubmit,
     handleStadiumSaved,
   } = useMatchForm(userId);
+
+  // 팀 검색 훅 사용
+  const { searchTerm, setSearchTerm, searchResults, isSearching, error } =
+    useTeamSearch();
+
+  const [teamSearchOpen, setTeamSearchOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -313,31 +335,138 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                 )}
               />
 
-              {/* 등록된 상대팀 선택 */}
+              {/* 등록된 상대팀 선택 - 검색 기능 적용 */}
               {form.watch("opponent_type") === "registered" && (
                 <FormField
                   control={form.control}
                   name="opponent_team_id"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>상대팀 선택</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
+                    <FormItem className="flex flex-col">
+                      <FormLabel>상대팀 검색</FormLabel>
+                      <Popover
+                        open={teamSearchOpen}
+                        onOpenChange={setTeamSearchOpen}
                       >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="상대팀 선택" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {teamData.opponentTeams.map((team) => (
-                            <SelectItem key={team.id} value={team.id}>
-                              {team.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={teamSearchOpen}
+                              className="w-full justify-between"
+                              onClick={() => {
+                                // 팝업 열릴 때 검색어 초기화 방지
+                                if (!teamSearchOpen && !searchTerm) {
+                                  // 기존 선택된 팀이 있으면 검색어에 해당 팀 이름 설정
+                                  const selectedTeam = field.value
+                                    ? searchResults.find(
+                                        (team) => team.id === field.value
+                                      ) ||
+                                      teamData.opponentTeams.find(
+                                        (team) => team.id === field.value
+                                      )
+                                    : null;
+
+                                  if (selectedTeam) {
+                                    setSearchTerm(selectedTeam.name);
+                                  }
+                                }
+                              }}
+                            >
+                              {field.value
+                                ? searchResults.find(
+                                    (team) => team.id === field.value
+                                  )?.name ||
+                                  teamData.opponentTeams.find(
+                                    (team) => team.id === field.value
+                                  )?.name ||
+                                  "상대팀 검색"
+                                : "상대팀 검색"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <div className="w-full rounded-md border border-input bg-transparent">
+                            <div className="flex items-center border-b px-3">
+                              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                              <input
+                                className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="팀 이름 입력 (1글자 이상)"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                              />
+                            </div>
+                            <div className="max-h-[300px] overflow-y-auto">
+                              {isSearching ? (
+                                <div className="flex items-center justify-center p-4">
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  <span>검색 중...</span>
+                                </div>
+                              ) : searchResults.length === 0 &&
+                                searchTerm.length > 0 ? (
+                                <div className="py-6 text-center text-sm">
+                                  검색 결과가 없습니다
+                                </div>
+                              ) : searchTerm.length === 0 ? (
+                                <div className="py-6 text-center text-sm">
+                                  팀 이름을 입력하세요
+                                </div>
+                              ) : null}
+
+                              {error && (
+                                <div className="py-2 px-4 text-sm text-red-500">
+                                  {error}
+                                </div>
+                              )}
+
+                              {!isSearching && searchResults.length > 0 && (
+                                <div className="p-1">
+                                  {searchResults.map((team) => (
+                                    <div
+                                      key={team.id}
+                                      onClick={() => {
+                                        console.log(
+                                          "팀 선택됨:",
+                                          team.id,
+                                          team.name
+                                        );
+                                        form.setValue(
+                                          "opponent_team_id",
+                                          team.id
+                                        );
+                                        setTeamSearchOpen(false);
+                                      }}
+                                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                    >
+                                      {team.emblem_url ? (
+                                        <div className="w-6 h-6 relative rounded-full overflow-hidden mr-2">
+                                          <img
+                                            src={team.emblem_url}
+                                            alt={team.name}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center mr-2">
+                                          <Shield className="w-3 h-3 text-gray-400" />
+                                        </div>
+                                      )}
+                                      <span>{team.name}</span>
+                                      {field.value === team.id && (
+                                        <Check className="ml-auto h-4 w-4" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <FormDescription>
+                        팀 이름을 입력하면 검색 결과가 표시됩니다.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

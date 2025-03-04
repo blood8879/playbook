@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { MatchFormValues, matchFormSchema } from "../lib/schemas";
 import { useToast } from "@/hooks/use-toast";
 import { fetchTeamData, fetchOpponentTeamStadiums, createMatch } from "../api";
+import { useSupabase } from "@/lib/supabase/client";
 
 export function useMatchForm(userId: string) {
   const router = useRouter();
@@ -174,5 +175,64 @@ export function useMatchForm(userId: string) {
     setIsStadiumDialogOpen,
     onSubmit,
     handleStadiumSaved,
+  };
+}
+
+// 상대팀 검색 기능 추가
+export function useTeamSearch() {
+  const { supabase } = useSupabase();
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const searchTeams = useCallback(
+    async (term: string) => {
+      // 1글자부터 검색 가능하도록 변경
+      if (!term || term.length < 1) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      setError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from("teams")
+          .select("id, name, emblem_url")
+          .ilike("name", `%${term}%`)
+          .limit(20); // 검색 결과 수 증가
+
+        // 순서 수정: 먼저 에러 체크 후 결과 설정
+        if (error) throw error;
+
+        setSearchResults(data || []);
+      } catch (error) {
+        console.error("팀 검색 중 오류 발생:", error);
+        setError("검색 중 오류가 발생했습니다.");
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [supabase]
+  );
+
+  // 검색어 변경시 디바운스 적용 (시간 단축)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchTeams(searchTerm);
+    }, 200); // 디바운스 시간 단축
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, searchTeams]);
+
+  return {
+    searchTerm,
+    setSearchTerm,
+    searchResults,
+    isSearching,
+    error,
   };
 }

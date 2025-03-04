@@ -891,3 +891,133 @@ export async function updateMatchResult(
     throw error;
   }
 }
+
+// 매치 골 정보 조회
+export async function getMatchGoals(supabase: any, matchId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("match_goals")
+      .select("*")
+      .eq("match_id", matchId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("골 정보 조회 중 오류 발생:", error);
+      return [];
+    }
+
+    // 골 데이터가 있으면 프로필 정보 조회
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map((goal) => goal.user_id))];
+
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (profileError) {
+        console.error("프로필 정보 조회 오류:", profileError);
+        return data;
+      }
+
+      // 골 데이터에 프로필 정보 추가
+      return data.map((goal) => {
+        const profile = profiles.find((p) => p.id === goal.user_id);
+        return {
+          ...goal,
+          profiles: profile,
+        };
+      });
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("골 정보 조회 중 예외 발생:", error);
+    return [];
+  }
+}
+
+// 매치 어시스트 정보 조회
+export async function getMatchAssists(supabase: any, matchId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("match_assists")
+      .select("*")
+      .eq("match_id", matchId);
+
+    if (error) {
+      console.error("어시스트 정보 조회 중 오류 발생:", error);
+      return [];
+    }
+
+    // 어시스트 데이터가 있으면 프로필 정보 조회
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map((assist) => assist.user_id))];
+
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (profileError) {
+        console.error("프로필 정보 조회 오류:", profileError);
+        return data;
+      }
+
+      // 어시스트 데이터에 프로필 정보 추가
+      return data.map((assist) => {
+        const profile = profiles.find((p) => p.id === assist.user_id);
+        return {
+          ...assist,
+          profiles: profile,
+        };
+      });
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("어시스트 정보 조회 중 예외 발생:", error);
+    return [];
+  }
+}
+
+// 매치 MOM 정보 조회
+export async function getMatchMom(supabase: any, matchId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("match_mom")
+      .select("*")
+      .eq("match_id", matchId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("MOM 정보 조회 중 오류 발생:", error);
+      return null;
+    }
+
+    // MOM 데이터가 있으면 프로필 정보 조회
+    if (data) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .eq("id", data.user_id)
+        .single();
+
+      if (profileError) {
+        console.error("프로필 정보 조회 오류:", profileError);
+        return data;
+      }
+
+      // MOM 데이터에 프로필 정보 추가
+      return {
+        ...data,
+        profiles: profile,
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error("MOM 정보 조회 중 예외 발생:", error);
+    return null;
+  }
+}
