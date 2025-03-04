@@ -17,7 +17,7 @@ export default function LoginPage() {
     if (error) {
       setApiError(error.message);
     } else {
-      router.push("/dashboard");
+      router.push("/teams");
     }
   };
 
