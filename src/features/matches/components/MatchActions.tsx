@@ -50,7 +50,12 @@ export function MatchActions({
           )}
         </div>
         <div className="flex gap-2">
-          <UpdateOpponent matchId={matchData.id} teamId={matchData.team_id} />
+          <UpdateOpponent
+            matchId={matchData.id}
+            teamId={
+              (matchData.user_team || matchData.team)?.id || matchData.team_id
+            }
+          />
           <Button
             onClick={() => router.push(`/matches/${matchData.id}/result`)}
             disabled={isOpponentTeamUndecided}

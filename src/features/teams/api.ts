@@ -431,7 +431,8 @@ export async function getMatchById(
   supabase: SupabaseClient,
   matchId: string
 ): Promise<TeamMatch | null> {
-  const { data, error } = await supabase
+  // 기본 경기 정보 조회
+  const { data: matchData, error: matchError } = await supabase
     .from("matches")
     .select(
       `
@@ -445,15 +446,47 @@ export async function getMatchById(
     .eq("id", matchId)
     .single();
 
-  if (error && error.code !== "PGRST116") {
-    throw error;
+  if (matchError) {
+    if (matchError.code === "PGRST116") {
+      return null;
+    }
+    throw matchError;
   }
 
-  if (!data) {
+  if (!matchData) {
     return null;
   }
 
-  return data as TeamMatch;
+  // currentUserTeam을 기본적으로 team으로 설정
+  let currentUserTeam = matchData.team;
+  let opponentTeam = matchData.opponent_team || matchData.opponent_guest_team;
+  let isHome = true;
+
+  // 추가로 확인: 사용자가 원정 팀에 소속되어 있는지 여부
+  const { data: userTeams } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", (await supabase.auth.getUser()).data.user?.id || "");
+
+  // 사용자가 속한 팀 목록
+  const userTeamIds = userTeams?.map((t) => t.team_id) || [];
+
+  // 사용자가 원정 팀에 소속되어 있는 경우, 데이터 구조를 변경
+  if (
+    matchData.opponent_team &&
+    userTeamIds.includes(matchData.opponent_team.id)
+  ) {
+    currentUserTeam = matchData.opponent_team;
+    opponentTeam = matchData.team;
+    isHome = false;
+  }
+
+  return {
+    ...matchData,
+    is_home: isHome,
+    user_team: currentUserTeam, // 사용자의 팀 정보
+    opposing_team: opponentTeam, // 상대 팀 정보
+  } as TeamMatch;
 }
 
 /**
@@ -714,6 +747,42 @@ export async function getMatchAttendanceList(
   supabase: SupabaseClient,
   matchId: string
 ): Promise<MatchAttendance[]> {
+  // 먼저 경기 정보를 가져옵니다
+  const { data: matchData, error: matchError } = await supabase
+    .from("matches")
+    .select(
+      `
+      *,
+      team:teams!matches_team_id_fkey(id),
+      opponent_team:teams!matches_opponent_team_id_fkey(id)
+    `
+    )
+    .eq("id", matchId)
+    .single();
+
+  if (matchError) throw matchError;
+
+  // 현재 로그인한 사용자의 ID 가져오기
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // 사용자가 속한 팀 목록 가져오기
+  const { data: userTeams } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", user?.id || "");
+
+  // 사용자가 속한 팀 ID 목록
+  const userTeamIds = userTeams?.map((t) => t.team_id) || [];
+
+  // 사용자가 홈팀인지 원정팀인지 확인
+  const isUserHome = userTeamIds.includes(matchData.team_id);
+  const isUserAway =
+    matchData.opponent_team_id &&
+    userTeamIds.includes(matchData.opponent_team_id);
+
+  // 참석 정보 가져오기
   const { data, error } = await supabase
     .from("match_attendance")
     .select(
@@ -731,16 +800,15 @@ export async function getMatchAttendanceList(
     )
     .eq("match_id", matchId);
 
-  console.log("match attendance data", data);
-  console.log("match attendance error", error);
-
   if (error) throw error;
 
   // team_id 정보를 match_attendance 객체에 포함
-  return data.map((attendance) => ({
+  const attendanceWithTeam = data.map((attendance) => ({
     ...attendance,
     team_id: attendance.profiles?.team_members?.[0]?.team_id,
-  })) as MatchAttendance[];
+  }));
+
+  return attendanceWithTeam as MatchAttendance[];
 }
 
 // src/features/teams/api.ts 파일에서 updateMatchResult 함수 수정
@@ -752,6 +820,41 @@ export async function updateMatchResult(
   attendanceList: any[]
 ) {
   try {
+    // 먼저 경기 정보를 가져옵니다
+    const { data: matchData, error: matchError } = await supabase
+      .from("matches")
+      .select(
+        `
+        *,
+        team:teams!matches_team_id_fkey(*),
+        opponent_team:teams!matches_opponent_team_id_fkey(*)
+      `
+      )
+      .eq("id", matchId)
+      .single();
+
+    if (matchError) throw matchError;
+
+    // 현재 로그인한 사용자의 ID 가져오기
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 사용자가 속한 팀 목록 가져오기
+    const { data: userTeams } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("user_id", user?.id || "");
+
+    // 사용자가 속한 팀 ID 목록
+    const userTeamIds = userTeams?.map((t) => t.team_id) || [];
+
+    // 사용자가 홈팀인지 원정팀인지 확인
+    const isUserHome = userTeamIds.includes(matchData.team_id);
+    const isUserAway =
+      matchData.opponent_team_id &&
+      userTeamIds.includes(matchData.opponent_team_id);
+
     // 1. 기존 데이터 삭제
     await Promise.all([
       supabase.from("match_goals").delete().eq("match_id", matchId),
@@ -766,10 +869,6 @@ export async function updateMatchResult(
     // 2. 참석 상태 업데이트
     const attendancePromises = Object.entries(playerStats).map(
       async ([userId, stats]: [string, any]) => {
-        console.log(
-          `결과 폼에서 참석 상태 업데이트: 유저 ${userId}, 상태 ${stats.attendance}`
-        );
-
         // 먼저 기존 참석 정보 삭제
         const { error: deleteError } = await supabase
           .from("match_attendance")
@@ -801,8 +900,16 @@ export async function updateMatchResult(
     const attendanceResults = await Promise.all(attendancePromises);
 
     // 3. 스코어 설정 (폼에서 계산된 값 사용)
-    const homeScore = matchScore.homeScore;
-    const awayScore = matchScore.awayScore;
+    let homeScore = matchScore.homeScore;
+    let awayScore = matchScore.awayScore;
+
+    // 사용자가 원정팀인 경우 스코어를 반대로 저장
+    if (isUserAway && !isUserHome) {
+      // 원정팀인 경우 스코어를 반대로 저장
+      const temp = homeScore;
+      homeScore = awayScore;
+      awayScore = temp;
+    }
 
     // 4. matches 테이블 업데이트
     await supabase

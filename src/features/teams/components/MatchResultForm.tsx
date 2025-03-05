@@ -68,11 +68,15 @@ export function MatchResultForm({
 
   // 홈팀과 원정팀 이름
   const homeTeamName = match.is_home
-    ? match.team?.name
-    : match.opponent_team?.name;
+    ? (match.user_team || match.team)?.name
+    : (match.opposing_team || match.opponent_team)?.name;
   const awayTeamName = match.is_home
-    ? match.opponent_team?.name
-    : match.team?.name;
+    ? (match.opposing_team || match.opponent_team)?.name
+    : (match.user_team || match.team)?.name;
+
+  // 사용자 팀 ID
+  const userTeamId = (match.user_team || match.team)?.id;
+  const opposingTeamId = (match.opposing_team || match.opponent_team)?.id;
 
   // 초기 상태 설정
   useEffect(() => {

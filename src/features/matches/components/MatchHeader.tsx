@@ -11,14 +11,23 @@ interface MatchHeaderProps {
 }
 
 export function MatchHeader({ matchData }: MatchHeaderProps) {
+  // 사용자의 팀과 상대팀 설정
+  const userTeam = matchData.user_team || matchData.team;
+  const opposingTeam =
+    matchData.opposing_team ||
+    matchData.opponent_team ||
+    matchData.opponent_guest_team;
+
+  const isHome = matchData.is_home;
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          {matchData.team?.emblem_url ? (
+          {userTeam?.emblem_url ? (
             <Image
-              src={matchData.team?.emblem_url || "/team-placeholder.png"}
-              alt={matchData.team?.name || ""}
+              src={userTeam?.emblem_url || "/team-placeholder.png"}
+              alt={userTeam?.name || ""}
               width={64}
               height={64}
               className="rounded-full"
@@ -27,9 +36,9 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
             <Shield className="w-6 h-6" />
           )}
           <div className="flex flex-col">
-            <span className="text-xl font-bold">{matchData.team?.name}</span>
+            <span className="text-xl font-bold">{userTeam?.name}</span>
             <span className="text-sm text-gray-600">
-              {matchData.is_home ? "홈" : "원정"}
+              {isHome ? "홈" : "원정"}
             </span>
           </div>
         </div>
@@ -42,27 +51,26 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
               locale: ko,
             })}
           </div>
+          {matchData.is_finished && (
+            <div className="font-bold text-xl mt-1">
+              {isHome ? matchData.home_score : matchData.away_score} :{" "}
+              {isHome ? matchData.away_score : matchData.home_score}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end">
             <span className="text-xl font-bold">
-              {matchData.is_tbd
-                ? "상대팀 미정"
-                : matchData.opponent_team?.name ||
-                  matchData.opponent_guest_team?.name}
+              {matchData.is_tbd ? "상대팀 미정" : opposingTeam?.name}
             </span>
             <span className="text-sm text-gray-600">
-              {matchData.is_home ? "원정" : "홈"}
+              {isHome ? "원정" : "홈"}
             </span>
           </div>
-          {matchData.opponent_team?.emblem_url ? (
+          {opposingTeam?.emblem_url ? (
             <Image
-              src={matchData.opponent_team?.emblem_url}
-              alt={
-                matchData.opponent_team?.name ||
-                matchData.opponent_guest_team?.name ||
-                ""
-              }
+              src={opposingTeam?.emblem_url}
+              alt={opposingTeam?.name || ""}
               width={64}
               height={64}
               className="rounded-full"

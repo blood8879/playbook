@@ -179,30 +179,34 @@ export function MatchTimeline({
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 relative">
-            {match.team?.emblem_url ? (
+            {(match.user_team || match.team)?.emblem_url ? (
               <img
-                src={match.team.emblem_url}
-                alt={match.team.name}
+                src={(match.user_team || match.team).emblem_url}
+                alt={(match.user_team || match.team).name}
                 className="w-full h-full object-contain"
               />
             ) : (
               <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
-                {match.team?.name?.[0] || "?"}
+                {(match.user_team || match.team)?.name?.[0] || "?"}
               </div>
             )}
           </div>
           <div className="text-lg font-semibold">
-            {match.team?.name || "홈팀"}
+            {(match.user_team || match.team)?.name || "우리 팀"}
           </div>
         </div>
 
         <div className="text-center">
           <div className="text-5xl font-bold mb-2">
             {match.is_finished
-              ? `${match.home_score} - ${match.away_score}`
+              ? match.is_home
+                ? `${match.home_score} - ${match.away_score}`
+                : `${match.away_score} - ${match.home_score}`
               : isOpponentTeamUndecided
               ? "vs"
-              : `${match.home_score || 0} - ${match.away_score || 0}`}
+              : match.is_home
+              ? `${match.home_score || 0} - ${match.away_score || 0}`
+              : `${match.away_score || 0} - ${match.home_score || 0}`}
           </div>
           <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
             {match.is_finished ? "경기 종료" : "예정된 경기"}
@@ -213,22 +217,25 @@ export function MatchTimeline({
           <div className="text-lg font-semibold text-right">
             {isOpponentTeamUndecided
               ? "미정"
-              : match.opponent_team?.name ||
-                match.opponent_guest_team?.name ||
-                "상대팀"}
+              : (
+                  match.opposing_team ||
+                  match.opponent_team ||
+                  match.opponent_guest_team
+                )?.name || "상대팀"}
           </div>
           <div className="w-16 h-16 relative">
-            {!isOpponentTeamUndecided && match.opponent_team?.emblem_url ? (
+            {!isOpponentTeamUndecided &&
+            (match.opposing_team || match.opponent_team)?.emblem_url ? (
               <img
-                src={match.opponent_team.emblem_url}
-                alt={match.opponent_team.name}
+                src={(match.opposing_team || match.opponent_team).emblem_url}
+                alt={(match.opposing_team || match.opponent_team).name}
                 className="w-full h-full object-contain"
               />
             ) : (
               <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
                 {isOpponentTeamUndecided
                   ? "?"
-                  : match.opponent_team?.name?.[0] ||
+                  : (match.opposing_team || match.opponent_team)?.name?.[0] ||
                     match.opponent_guest_team?.name?.[0] ||
                     "?"}
               </div>
@@ -241,7 +248,7 @@ export function MatchTimeline({
       <div className="grid grid-cols-2 gap-6 mb-8">
         <div className="bg-blue-50 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-blue-700 mb-3 text-center border-b border-blue-100 pb-2">
-            {match.team?.name} 득점자
+            {(match.user_team || match.team)?.name} 득점자
           </h3>
           {isLoading || isGoalsLoading ? (
             <div className="text-center text-sm text-gray-500 py-2">
@@ -274,8 +281,11 @@ export function MatchTimeline({
           <h3 className="text-sm font-medium text-red-700 mb-3 text-center border-b border-red-100 pb-2">
             {isOpponentTeamUndecided
               ? "상대팀"
-              : match.opponent_team?.name ||
-                match.opponent_guest_team?.name}{" "}
+              : (
+                  match.opposing_team ||
+                  match.opponent_team ||
+                  match.opponent_guest_team
+                )?.name || "상대팀"}
             득점자
           </h3>
           {isLoading || isGoalsLoading ? (

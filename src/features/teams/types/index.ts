@@ -53,6 +53,8 @@ export interface TeamMatch {
   opponent_team?: Team;
   opponent_guest_team?: GuestTeam;
   stadium?: Stadium;
+  user_team?: Team;
+  opposing_team?: Team | GuestTeam;
 }
 
 export interface HeadToHeadStats {
