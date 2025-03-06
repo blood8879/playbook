@@ -17,6 +17,7 @@ export interface TeamMatch {
   opponent_team_id: string | null;
   opponent_guest_team_id: string | null;
   is_tbd: boolean;
+  is_home: boolean;
   venue: string;
   description: string | null;
   competition_type: "friendly" | "league" | "cup";
