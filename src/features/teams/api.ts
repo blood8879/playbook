@@ -605,7 +605,14 @@ export async function getLastMatchesOfTeam(
 ) {
   const query = supabase
     .from("matches")
-    .select("*")
+    .select(
+      `
+      *,
+      team:teams!matches_team_id_fkey(id, name, emblem_url),
+      opponent_team:teams!matches_opponent_team_id_fkey(id, name, emblem_url),
+      opponent_guest_team:guest_clubs(id, name)
+    `
+    )
     .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
     .order("match_date", { ascending: false })
     .limit(5);

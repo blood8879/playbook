@@ -17,8 +17,8 @@ export async function getLastMatchesOfTeam(
       away_score
     `
     )
-    .eq("team_id", teamId)
-    .eq("is_finished", true)
+    .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
+    .eq(options?.isFinished ? "is_finished" : "id", options?.isFinished || "id")
     .order("match_date", { ascending: false })
     .limit(5);
 

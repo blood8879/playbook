@@ -282,13 +282,21 @@ export function MatchStatistics({
             <div className="space-y-3">
               {homeTeamRecent.map((match) => {
                 const result = getMatchResult(match, matchData.team_id);
+                const isHome = match.team_id === matchData.team_id;
+                // 상대팀 정보 가져오기
+                const opponentTeam = isHome
+                  ? match.opponent_team?.name ||
+                    match.opponent_guest_team?.name ||
+                    "상대팀"
+                  : match.team?.name || "상대팀";
+
                 return (
                   <div
                     key={match.id}
                     className="flex items-center justify-between p-2 border-b"
                   >
-                    <div className="text-sm">
-                      {format(new Date(match.match_date), "yyyy.MM.dd")}
+                    <div className="text-sm flex-1">
+                      {isHome ? "(H)" : "(A)"} {opponentTeam}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="font-bold">
@@ -322,13 +330,21 @@ export function MatchStatistics({
                   match,
                   matchData.opponent_team?.id || ""
                 );
+                const isHome = match.team_id === matchData.opponent_team?.id;
+                // 상대팀 정보 가져오기
+                const opponentTeam = isHome
+                  ? match.opponent_team?.name ||
+                    match.opponent_guest_team?.name ||
+                    "상대팀"
+                  : match.team?.name || "상대팀";
+
                 return (
                   <div
                     key={match.id}
                     className="flex items-center justify-between p-2 border-b"
                   >
-                    <div className="text-sm">
-                      {format(new Date(match.match_date), "yyyy.MM.dd")}
+                    <div className="text-sm flex-1">
+                      {isHome ? "(H)" : "(A)"} {opponentTeam}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="font-bold">
