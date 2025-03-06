@@ -19,25 +19,64 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
   const { supabase } = useSupabase();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
-  // 완료된 경기 목록 조회
+  // 완료된 경기 목록 조회 (홈과 원정 경기 모두 포함)
   const { data: completedMatches, isLoading } = useQuery({
     queryKey: ["completedMatches", teamId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 우리가 홈팀인 경기 (team_id가 우리 팀인 경우)
+      const { data: homeMatches, error: homeError } = await supabase
         .from("matches")
         .select(
           `
           *,
-          opponent_team:opponent_team_id(*),
-          opponent_guest_team:opponent_guest_team_id(*)
+          opponent_team:teams!matches_opponent_team_id_fkey(*),
+          opponent_guest_team:opponent_guest_team_id(*),
+          stadium:stadiums(*)
         `
         )
         .eq("team_id", teamId)
         .eq("is_finished", true)
         .order("match_date", { ascending: false });
 
-      if (error) throw error;
-      return data as TeamMatch[];
+      if (homeError) throw homeError;
+
+      // 우리가 원정팀인 경기 (opponent_team_id가 우리 팀인 경우)
+      const { data: awayMatches, error: awayError } = await supabase
+        .from("matches")
+        .select(
+          `
+          *,
+          team:teams!matches_team_id_fkey(*),
+          opponent_guest_team:opponent_guest_team_id(*),
+          stadium:stadiums(*)
+        `
+        )
+        .eq("opponent_team_id", teamId)
+        .eq("is_finished", true)
+        .order("match_date", { ascending: false });
+
+      if (awayError) throw awayError;
+
+      // 홈 경기에는 is_home = true 추가
+      const homeMatchesWithFlag = homeMatches.map((match) => ({
+        ...match,
+        is_home: true,
+      }));
+
+      // 원정 경기에는 is_home = false 추가하고 필요한 필드 조정
+      const awayMatchesWithFlag = awayMatches.map((match) => ({
+        ...match,
+        is_home: false,
+        opponent_team: match.team, // opponent_team 필드를 기존 team 값으로 설정
+      }));
+
+      // 모든 경기 결합 및 날짜순 정렬
+      const allMatches = [...homeMatchesWithFlag, ...awayMatchesWithFlag].sort(
+        (a, b) =>
+          new Date(b.match_date).getTime() - new Date(a.match_date).getTime()
+      );
+
+      return allMatches as TeamMatch[];
     },
     enabled: !!teamId,
   });
@@ -238,8 +277,10 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
                   vs{" "}
                   {match.is_tbd
                     ? "상대팀 미정"
-                    : match.opponent_team?.name ||
-                      match.opponent_guest_team?.name}
+                    : match.is_home
+                    ? match.opponent_team?.name ||
+                      match.opponent_guest_team?.name
+                    : match.team?.name}
                 </span>
                 <Badge
                   variant="outline"
@@ -261,7 +302,9 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
                 {match.participants_count || 0}명 참가
               </div>
               <div className="font-bold text-lg mt-2">
-                {match.home_score} : {match.away_score}
+                {match.is_home
+                  ? `${match.home_score} : ${match.away_score}`
+                  : `${match.away_score} : ${match.home_score}`}
               </div>
             </CardContent>
           </Card>

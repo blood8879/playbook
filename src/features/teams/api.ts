@@ -592,7 +592,6 @@ export const getHeadToHeadStats = async (
     }
   });
 
-  console.log("계산된 head-to-head 통계:", stats);
   return stats;
 };
 
