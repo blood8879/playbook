@@ -601,7 +601,7 @@ export const getHeadToHeadStats = async (
 export async function getLastMatchesOfTeam(
   supabase: SupabaseClient,
   teamId: string,
-  options?: { isFinished?: boolean }
+  options?: { isFinished?: boolean; limit?: number }
 ) {
   const query = supabase
     .from("matches")
@@ -615,10 +615,10 @@ export async function getLastMatchesOfTeam(
     )
     .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
     .order("match_date", { ascending: false })
-    .limit(5);
+    .limit(options?.limit || 5);
 
-  if (options?.isFinished) {
-    query.eq("is_finished", true);
+  if (options?.isFinished !== undefined) {
+    query.eq("is_finished", options.isFinished);
   }
 
   const { data, error } = await query;
