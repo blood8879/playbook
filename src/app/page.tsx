@@ -19,6 +19,7 @@ import {
   Calendar,
   ArrowRight,
 } from "lucide-react";
+import { getLastMatchesOfTeam } from "@/features/teams/api";
 
 export default async function HomePage() {
   const supabase = await createServerClient();
@@ -57,42 +58,43 @@ export default async function HomePage() {
         return redirect("/dashboard");
       }
 
-      // 시즌 전체 통계 조회
-      const { data: matchesData } = await supabase
-        .from("matches")
-        .select("id, is_finished, home_score, away_score, is_home, team_id")
-        .eq("team_id", team.id)
-        .eq("is_finished", true);
+      // 팀의 모든 경기 조회 (홈/원정 모두 포함)
+      const matches = await getLastMatchesOfTeam(supabase, team.id, {
+        isFinished: true,
+        limit: 100, // 충분히 많은 수의 경기를 가져옵니다
+      });
 
-      const matches = matchesData || [];
+      // 경기 결과 통계 계산
+      let wins = 0;
+      let draws = 0;
+      let losses = 0;
+      let totalGoalsScored = 0;
+      let totalGoalsConceded = 0;
 
-      const wins = matches.filter(
-        (match) =>
-          (match.is_home && match.home_score > match.away_score) ||
-          (!match.is_home && match.away_score > match.home_score)
-      ).length;
+      matches.forEach((match) => {
+        // 현재 팀이 홈팀인지 확인
+        const isHomeTeam = match.team_id === team.id;
 
-      const draws = matches.filter(
-        (match) => match.home_score === match.away_score
-      ).length;
+        // 현재 팀의 득점과 실점 계산
+        const ourScore = isHomeTeam ? match.home_score : match.away_score;
+        const theirScore = isHomeTeam ? match.away_score : match.home_score;
 
-      const losses = matches.filter(
-        (match) =>
-          (match.is_home && match.home_score < match.away_score) ||
-          (!match.is_home && match.away_score < match.home_score)
-      ).length;
+        // 득점과 실점이 null이 아닌 경우에만 계산
+        if (ourScore !== null && theirScore !== null) {
+          // 승/무/패 계산
+          if (ourScore > theirScore) {
+            wins++;
+          } else if (ourScore === theirScore) {
+            draws++;
+          } else {
+            losses++;
+          }
 
-      const totalGoalsScored = matches.reduce(
-        (acc, match) =>
-          acc + (match.is_home ? match.home_score : match.away_score),
-        0
-      );
-
-      const totalGoalsConceded = matches.reduce(
-        (acc, match) =>
-          acc + (match.is_home ? match.away_score : match.home_score),
-        0
-      );
+          // 득점/실점 누적
+          totalGoalsScored += ourScore;
+          totalGoalsConceded += theirScore;
+        }
+      });
 
       const seasonStats = {
         matches: matches.length,
@@ -115,7 +117,10 @@ export default async function HomePage() {
           .from("match_attendance")
           .select("*")
           .eq("user_id", user.id)
-          .eq("team_id", team.id);
+          .in(
+            "match_id",
+            matches.map((m) => m.id)
+          );
 
         const totalAttendance = attendanceData?.length || 0;
         const attending =
@@ -125,15 +130,21 @@ export default async function HomePage() {
         const { data: goalsData } = await supabase
           .from("match_goals")
           .select("*")
-          .eq("player_id", user.id)
-          .eq("team_id", team.id);
+          .eq("user_id", user.id)
+          .in(
+            "match_id",
+            matches.map((m) => m.id)
+          );
 
         // MOM 통계
         const { data: momData } = await supabase
           .from("match_mom")
           .select("*")
-          .eq("player_id", user.id)
-          .eq("team_id", team.id);
+          .eq("user_id", user.id)
+          .in(
+            "match_id",
+            matches.map((m) => m.id)
+          );
 
         memberStats = {
           totalMatches: matches.length,
