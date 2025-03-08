@@ -3,6 +3,8 @@
 import { supabase } from "@/lib/supabase/client";
 import { ScheduleFormValues, StadiumFormValues } from "./lib/schema";
 import { MatchFormValues } from "./lib/schemas";
+import { createClient } from "@supabase/supabase-js";
+import { format } from "date-fns";
 
 // 팀 데이터 가져오기
 export async function fetchTeamData(userId: string) {
@@ -115,136 +117,189 @@ export async function createStadium({
   }
 }
 
-// 경기 생성하기
-export async function createMatch(
-  values: MatchFormValues,
-  teamId: string,
-  userId: string
-) {
+// Match 타입 정의
+export type Match = {
+  id: string;
+  name: string;
+  location: string;
+  scheduled_at: string;
+  home_team_id: string;
+  guest_team_id: string | null;
+  description?: string;
+  status: "scheduled" | "in_progress" | "completed" | "cancelled";
+  created_by: string;
+  created_at: string;
+  home_team_score?: number;
+  guest_team_score?: number;
+};
+
+type CreateMatchData = Omit<
+  Match,
+  "id" | "created_at" | "home_team_score" | "guest_team_score"
+>;
+
+/**
+ * 새 경기 생성 함수
+ * @param matchData 경기 데이터
+ * @returns 생성된 경기 객체
+ */
+export async function createMatch(matchData: MatchFormValues): Promise<any> {
   try {
-    // 날짜와 시간 결합
-    console.log("values", values);
-    console.log("teamId", teamId);
-    console.log("userId", userId);
-    const matchDateTime = new Date(values.match_date);
-    const [hours, minutes] = values.match_time.split(":").map(Number);
-    matchDateTime.setHours(hours, minutes);
+    console.log("API 호출 데이터:", matchData);
 
-    const matchData = {
-      team_id: teamId,
-      match_date: matchDateTime.toISOString(),
-      registration_deadline: values.registration_deadline.toISOString(),
-      opponent_team_id:
-        values.opponent_type === "registered" ? values.opponent_team_id : null,
-      opponent_guest_team_id: null, // 게스트 팀인 경우 아래에서 설정
-      is_tbd: values.opponent_type === "tbd",
-      venue: values.venue,
-      description: values.description || null,
-      competition_type: values.competition_type,
-      game_type: "11vs11", // 기본값
-      home_score: null,
-      away_score: null,
-      is_finished: false,
-      stadium_id: values.stadium_id || null,
-      is_home: values.match_type === "home",
-    };
+    // 게스트 팀 처리
+    let opponent_guest_team_id = null;
 
-    // 게스트 팀인 경우 게스트 팀 정보 추가
-    if (values.opponent_type === "guest") {
-      const { data: guestTeam, error: guestTeamError } = await supabase
-        .from("guest_teams")
-        .insert([
-          {
-            name: values.opponent_guest_team_name,
-            description: values.opponent_guest_team_description || "",
-            club_id: values.guest_club_id,
-          },
-        ])
-        .select()
-        .single();
+    if (
+      matchData.opponent_type === "guest" &&
+      matchData.opponent_guest_team_name
+    ) {
+      // 기존 게스트팀 확인 (게스트 클럽 ID가 제공된 경우)
+      if (matchData.guest_club_id && matchData.guest_club_id !== "none") {
+        const { data: existingTeam, error } = await supabase
+          .from("guest_clubs")
+          .select("id")
+          .eq("team_id", matchData.team_id)
+          .eq("name", matchData.opponent_guest_team_name)
+          .single();
 
-      if (guestTeamError) throw guestTeamError;
+        if (!error && existingTeam) {
+          opponent_guest_team_id = existingTeam.id;
+        }
+      }
 
-      // 게스트 팀 ID 설정
-      matchData.opponent_guest_team_id = guestTeam.id;
-    }
+      // 기존 게스트팀이 없으면 새로 생성
+      if (!opponent_guest_team_id) {
+        const { data: newTeam, error: insertError } = await supabase
+          .from("guest_clubs")
+          .insert({
+            name: matchData.opponent_guest_team_name,
+            description: matchData.opponent_guest_team_description || null,
+            team_id: matchData.team_id,
+          })
+          .select()
+          .single();
 
-    // 경기 생성
-    const { data: match, error } = await supabase
-      .from("matches")
-      .insert([matchData])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // 우리 팀 소속 플레이어들 가져오기
-    const { data: teamMembers, error: teamMembersError } = await supabase
-      .from("team_members")
-      .select("user_id")
-      .eq("team_id", teamId)
-      .eq("status", "active");
-
-    console.log("teamMembers", teamMembers);
-    console.log("teamMembersError", teamMembersError);
-
-    if (teamMembersError) throw teamMembersError;
-
-    // 우리 팀 플레이어들을 미정 상태로 등록
-    if (teamMembers && teamMembers.length > 0) {
-      const matchPlayers = teamMembers.map((member) => ({
-        match_id: match.id,
-        user_id: member.user_id,
-        status: "maybe", // 미정 상태
-      }));
-
-      console.log("matchPlayers", matchPlayers);
-
-      const { error: insertError } = await supabase
-        .from("match_attendance")
-        .insert(matchPlayers);
-
-      console.log("insertError", insertError);
-
-      if (insertError) throw insertError;
-    }
-
-    // 등록된 상대팀인 경우, 상대팀 플레이어들도 등록
-    if (values.opponent_type === "registered" && matchData.opponent_team_id) {
-      const { data: opponentTeamMembers, error: opponentTeamMembersError } =
-        await supabase
-          .from("team_members")
-          .select("user_id")
-          .eq("team_id", matchData.opponent_team_id)
-          .eq("status", "active");
-
-      console.log("opponentTeamMembers", opponentTeamMembers);
-
-      if (opponentTeamMembersError) throw opponentTeamMembersError;
-
-      // 상대팀 플레이어들을 미정 상태로 등록
-      if (opponentTeamMembers && opponentTeamMembers.length > 0) {
-        const opponentMatchPlayers = opponentTeamMembers.map((member) => ({
-          match_id: match.id,
-          user_id: member.user_id,
-          status: "maybe", // 미정 상태
-        }));
-
-        console.log("opponentMatchPlayers", opponentMatchPlayers);
-
-        const { error: insertOpponentError } = await supabase
-          .from("match_attendance")
-          .insert(opponentMatchPlayers);
-
-        if (insertOpponentError) throw insertOpponentError;
+        if (insertError) throw insertError;
+        opponent_guest_team_id = newTeam.id;
       }
     }
 
-    return match;
+    // match_date와 match_time을 결합하여 하나의 timestamp로 변환
+    const [hours, minutes] = matchData.match_time.split(":").map(Number);
+    const matchDateTime = new Date(matchData.match_date);
+    matchDateTime.setHours(hours, minutes, 0, 0);
+
+    // 경기 생성
+    const { data, error } = await supabase
+      .from("matches")
+      .insert({
+        team_id: matchData.team_id,
+        match_date: matchDateTime.toISOString(),
+        registration_deadline: format(
+          matchData.registration_deadline,
+          "yyyy-MM-dd"
+        ),
+        opponent_team_id:
+          matchData.opponent_type === "registered"
+            ? matchData.opponent_team_id
+            : null,
+        opponent_guest_team_id: opponent_guest_team_id, // 수정된 부분: 필드명 맞춤
+        is_tbd: matchData.opponent_type === "tbd",
+        venue: matchData.venue || "",
+        stadium_id:
+          matchData.stadium_id === "none" ? null : matchData.stadium_id,
+        description: matchData.description || null,
+        competition_type: "friendly",
+        game_type: "11vs11",
+        is_home: matchData.match_type === "home",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("경기 생성 오류:", error);
+      throw new Error(`경기 생성 실패: ${error.message}`);
+    }
+
+    return data;
   } catch (error) {
     console.error("경기 생성 오류:", error);
     throw error;
   }
+}
+
+/**
+ * 모든 경기 목록 조회 함수
+ * @returns 경기 목록 배열
+ */
+export async function getMatches(): Promise<Match[]> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .order("scheduled_at", { ascending: false });
+
+  if (error) {
+    console.error("경기 목록 조회 오류:", error);
+    throw new Error(`경기 목록 조회 실패: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * 특정 경기 정보 조회 함수
+ * @param id 경기 ID
+ * @returns 경기 객체
+ */
+export async function getMatch(id: string): Promise<Match | null> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    // 데이터가 없는 경우는 에러로 처리하지 않음
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    console.error("경기 정보 조회 오류:", error);
+    throw new Error(`경기 정보 조회 실패: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
+ * 경기 정보 업데이트 함수
+ * @param id 경기 ID
+ * @param matchData 업데이트할 경기 데이터
+ * @returns 업데이트된 경기 객체
+ */
+export async function updateMatch(
+  id: string,
+  matchData: Partial<Omit<Match, "id" | "created_at" | "created_by">>
+): Promise<Match> {
+  // guest_team_id가 빈 문자열일 경우 null로 처리
+  const sanitizedData =
+    matchData.guest_team_id === ""
+      ? { ...matchData, guest_team_id: null }
+      : matchData;
+
+  const { data, error } = await supabase
+    .from("matches")
+    .update(sanitizedData)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("경기 정보 업데이트 오류:", error);
+    throw new Error(`경기 정보 업데이트 실패: ${error.message}`);
+  }
+
+  return data;
 }
 
 // 경기장 데이터 가져오기

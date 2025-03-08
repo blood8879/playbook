@@ -32,12 +32,18 @@ export function useMatchForm(userId: string) {
     resolver: zodResolver(matchFormSchema),
     defaultValues: {
       match_date: new Date(),
-      match_time: "15:00",
+      match_time: "12:00",
       registration_deadline: new Date(),
-      opponent_type: "registered",
-      venue: "",
-      competition_type: "friendly",
+      opponent_type: "tbd",
       match_type: "home",
+      venue: "",
+      description: "",
+      opponent_team_id: "",
+      stadium_id: "",
+      // 게스트팀 관련 필드 기본값 설정
+      opponent_guest_team_name: "",
+      opponent_guest_team_description: "",
+      guest_club_id: "none", // 기본값 설정
     },
   });
 
@@ -119,30 +125,77 @@ export function useMatchForm(userId: string) {
 
   // 폼 제출 핸들러
   const onSubmit = async (values: MatchFormValues) => {
-    if (!teamData?.team) {
+    // 필수 필드 검증
+    if (!values.match_date || !values.registration_deadline) {
       toast({
-        title: "오류",
-        description: "팀 정보를 불러올 수 없습니다.",
+        title: "필수 정보 누락",
+        description: "경기 날짜와 참가 신청 마감일을 모두 선택해주세요.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await createMatch(values, teamData.team.id, userId);
-
+    // 경기장 유효성 검사
+    if (
+      values.match_type === "home" &&
+      (!values.stadium_id || values.stadium_id === "none")
+    ) {
       toast({
-        title: "성공",
-        description: "경기가 성공적으로 생성되었습니다.",
+        title: "경기장 정보 오류",
+        description: "홈 경기의 경우 경기장을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 상대팀 유효성 검사
+    if (values.opponent_type === "registered" && !values.opponent_team_id) {
+      toast({
+        title: "상대팀 정보 오류",
+        description: "등록된 팀을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (values.opponent_type === "guest" && !values.opponent_guest_team_name) {
+      toast({
+        title: "상대팀 정보 오류",
+        description: "게스트 팀 이름을 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // team_id 설정
+      const submissionData = {
+        ...values,
+        team_id: teamData?.team?.id || "",
+        is_home: values.match_type === "home",
+      };
+
+      // API 호출
+      const result = await createMatch(submissionData);
+
+      // 성공 처리
+      toast({
+        title: "경기 생성 완료",
+        description: "새로운 경기가 성공적으로 생성되었습니다.",
       });
 
-      router.push(`/teams/${teamData.team.id}`);
+      // 팀 페이지로 리다이렉트
+      router.push(`/teams/${teamData?.team?.id}`);
     } catch (error) {
       console.error("경기 생성 오류:", error);
       toast({
-        title: "오류",
-        description: "경기 생성 중 오류가 발생했습니다.",
+        title: "경기 생성 실패",
+        description:
+          error instanceof Error
+            ? error.message
+            : "알 수 없는 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {

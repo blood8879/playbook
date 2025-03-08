@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSupabase } from "@/lib/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,48 @@ import {
   Star,
   Calendar,
 } from "lucide-react";
+import { useMemo } from "react";
+
+// 데이터 타입 정의
+interface AttendanceStat {
+  status: string;
+  count: number;
+}
+
+interface TopScorer {
+  id: string;
+  name: string;
+  goals: number;
+}
+
+interface TopAssist {
+  id: string;
+  name: string;
+  assists: number;
+}
+
+interface MomStat {
+  id: string;
+  name: string;
+  count: number;
+}
+
+interface PlayerAttendance {
+  id: string;
+  name: string;
+  attendanceRate: number;
+  totalMatches: number;
+  attendingCount: number;
+}
+
+interface TeamMember {
+  id: string;
+  user_id: string;
+  profiles: {
+    id: string;
+    name: string;
+  } | null;
+}
 
 export default function TeamDashboardPage() {
   const params = useParams();
@@ -153,59 +195,8 @@ export default function TeamDashboardPage() {
         });
 
         if (!matchesData || matchesData.length === 0) {
-          console.log("경기 데이터가 없어 샘플 데이터를 사용합니다.");
-          return [
-            {
-              id: "1",
-              match_date: "2024-05-01",
-              home_score: 3,
-              away_score: 1,
-              is_home: true,
-              result: "W",
-              formattedDate: "5.1",
-              opponentName: "FC 서울",
-            },
-            {
-              id: "2",
-              match_date: "2024-04-25",
-              home_score: 2,
-              away_score: 2,
-              is_home: false,
-              result: "D",
-              formattedDate: "4.25",
-              opponentName: "울산 현대",
-            },
-            {
-              id: "3",
-              match_date: "2024-04-18",
-              home_score: 0,
-              away_score: 2,
-              is_home: true,
-              result: "L",
-              formattedDate: "4.18",
-              opponentName: "전북 현대",
-            },
-            {
-              id: "4",
-              match_date: "2024-04-10",
-              home_score: 4,
-              away_score: 0,
-              is_home: false,
-              result: "W",
-              formattedDate: "4.10",
-              opponentName: "인천 유나이티드",
-            },
-            {
-              id: "5",
-              match_date: "2024-04-03",
-              home_score: 1,
-              away_score: 0,
-              is_home: true,
-              result: "W",
-              formattedDate: "4.3",
-              opponentName: "포항 스틸러스",
-            },
-          ];
+          console.log("경기 데이터가 없습니다.");
+          return [];
         }
 
         // 데이터가 있는 경우 실제 데이터 매핑
@@ -254,29 +245,8 @@ export default function TeamDashboardPage() {
         });
       } catch (error) {
         console.error("최근 경기 조회 중 오류 발생:", error);
-        // 오류 발생 시 샘플 데이터 반환
-        return [
-          {
-            id: "1",
-            match_date: "2024-05-01",
-            home_score: 3,
-            away_score: 1,
-            is_home: true,
-            result: "W",
-            formattedDate: "5.1",
-            opponentName: "FC 서울",
-          },
-          {
-            id: "2",
-            match_date: "2024-04-25",
-            home_score: 2,
-            away_score: 2,
-            is_home: false,
-            result: "D",
-            formattedDate: "4.25",
-            opponentName: "울산 현대",
-          },
-        ];
+        // 오류 발생 시 빈 배열 반환
+        return [];
       }
     },
     enabled: !!teamId,
@@ -330,187 +300,400 @@ export default function TeamDashboardPage() {
     enabled: !!teamId,
   });
 
-  // 최다 득점자 조회
-  const { data: topScorers } = useQuery({
-    queryKey: ["topScorers", teamId],
+  // 출석률 통계 조회 수정
+  const { data: attendanceStats } = useQuery<AttendanceStat[]>({
+    queryKey: ["attendanceStats", teamId],
     queryFn: async () => {
       try {
-        // 실제 데이터를 가져오는 코드 구현
-        const { data, error } = await supabase.rpc("get_top_scorers", {
-          team_id: teamId,
-        });
+        // team_id로 직접 필터링하여 출석 데이터 조회
+        const { data, error } = await supabase
+          .from("match_attendance")
+          .select("*")
+          .eq("team_id", teamId)
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-          console.log("실제 득점자 데이터:", data);
-          return data;
+          // 참석 상태별로 집계
+          const attendanceCount: Record<string, number> = data.reduce(
+            (acc: Record<string, number>, curr) => {
+              const status = curr.status || "unknown";
+              acc[status] = (acc[status] || 0) + 1;
+              return acc;
+            },
+            {}
+          );
+
+          console.log("실제 출석 데이터:", attendanceCount);
+          return [
+            { status: "참석", count: attendanceCount.attending || 0 },
+            { status: "불참", count: attendanceCount.absent || 0 },
+            { status: "미정", count: attendanceCount.unknown || 0 },
+          ];
         }
 
-        // 데이터가 없으면 샘플 데이터 반환
+        // 데이터가 없을 경우 모두 0으로 초기화된 데이터 반환
         return [
-          { id: "1", name: "홍길동", goals: 5 },
-          { id: "2", name: "김철수", goals: 3 },
-          { id: "3", name: "이영희", goals: 2 },
-          { id: "4", name: "박지성", goals: 2 },
-          { id: "5", name: "손흥민", goals: 1 },
+          { status: "참석", count: 0 },
+          { status: "불참", count: 0 },
+          { status: "미정", count: 0 },
         ];
       } catch (error) {
-        console.error("득점자 정보 조회 중 오류:", error);
+        console.error("출석률 정보 조회 중 오류:", error);
         return [
-          { id: "1", name: "홍길동", goals: 5 },
-          { id: "2", name: "김철수", goals: 3 },
+          { status: "참석", count: 0 },
+          { status: "불참", count: 0 },
+          { status: "미정", count: 0 },
         ];
       }
     },
     enabled: !!teamId,
   });
 
-  // 어시스트 기록 조회
-  const { data: topAssists } = useQuery({
-    queryKey: ["topAssists", teamId],
+  // 플레이어별 출석률 통계 조회
+  const { data: playerAttendances } = useQuery<PlayerAttendance[]>({
+    queryKey: ["playerAttendances", teamId],
     queryFn: async () => {
       try {
-        // 실제 데이터를 가져오는 코드 구현
-        const { data, error } = await supabase.rpc("get_top_assists", {
-          team_id: teamId,
-        });
+        // 1. 팀의 모든 경기 수 조회
+        const { data: matchesData, error: matchesError } = await supabase
+          .from("matches")
+          .select("id")
+          .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
+          .eq("is_finished", true);
+
+        if (matchesError) throw matchesError;
+
+        const totalTeamMatches = matchesData?.length || 0;
+        if (totalTeamMatches === 0) return [];
+
+        // 2. 팀에 소속된 모든 플레이어 조회
+        const { data: teamMembers, error: teamMembersError } = await supabase
+          .from("team_members")
+          .select(
+            `
+            id,
+            user_id,
+            profiles(
+              id,
+              name
+            )
+          `
+          )
+          .eq("team_id", teamId)
+          .eq("status", "active");
+
+        if (teamMembersError) throw teamMembersError;
+        if (!teamMembers || teamMembers.length === 0) return [];
+
+        // 3. 각 플레이어의 출석 데이터 조회
+        const playerAttendances: PlayerAttendance[] = [];
+
+        for (const member of teamMembers) {
+          // 프로필 정보 추출
+          const profile = member.profiles;
+          const playerName =
+            typeof profile === "object" && profile !== null && "name" in profile
+              ? (profile.name as string)
+              : "알 수 없음";
+
+          const { data: attendanceData, error: attendanceError } =
+            await supabase
+              .from("match_attendance")
+              .select("*")
+              .eq("user_id", member.user_id)
+              .eq("status", "attending");
+
+          if (attendanceError) throw attendanceError;
+
+          const attendingCount = attendanceData?.length || 0;
+          const attendanceRate =
+            totalTeamMatches > 0
+              ? Math.round((attendingCount / totalTeamMatches) * 100)
+              : 0;
+
+          playerAttendances.push({
+            id: member.user_id,
+            name: playerName,
+            attendanceRate,
+            totalMatches: totalTeamMatches,
+            attendingCount,
+          });
+        }
+
+        // 출석률 기준 내림차순 정렬 후 상위 5명만 반환
+        return playerAttendances
+          .sort((a, b) => b.attendanceRate - a.attendanceRate)
+          .slice(0, 5);
+      } catch (error) {
+        console.error("플레이어별 출석률 정보 조회 중 오류:", error);
+        return [];
+      }
+    },
+    enabled: !!teamId,
+  });
+
+  // 팀 전체 평균 출석률 계산
+  const teamAverageAttendance = useMemo(() => {
+    if (!playerAttendances || playerAttendances.length === 0) return 0;
+
+    const totalAttendanceRate = playerAttendances.reduce(
+      (sum, player) => sum + player.attendanceRate,
+      0
+    );
+
+    return Math.round(totalAttendanceRate / playerAttendances.length);
+  }, [playerAttendances]);
+
+  // 득점자 통계 조회
+  const { data: topScorers } = useQuery<TopScorer[]>({
+    queryKey: ["topScorers", teamId],
+    queryFn: async () => {
+      try {
+        // 기존 경기 ID 조회 코드는 제거하고 바로 득점 데이터를 team_id로 필터링
+        const { data: goalsData, error } = await supabase
+          .from("match_goals")
+          .select("*")
+          .eq("team_id", teamId) // team_id로 필터링
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
-          console.log("실제 어시스트 데이터:", data);
-          return data;
+        if (!goalsData || goalsData.length === 0) {
+          return [];
         }
 
-        // 데이터가 없으면 샘플 데이터 반환
-        return [
-          { id: "1", name: "박지성", assists: 6 },
-          { id: "2", name: "손흥민", assists: 4 },
-          { id: "3", name: "김철수", assists: 3 },
-          { id: "4", name: "이영희", assists: 2 },
-          { id: "5", name: "홍길동", assists: 1 },
+        // 3. 득점자 profile_id 수집 (undefined 제외)
+        const validGoalData = goalsData.filter((goal) => goal.profile_id);
+        if (validGoalData.length === 0) {
+          return [];
+        }
+
+        const profileIds = [
+          ...new Set(validGoalData.map((goal) => goal.profile_id)),
         ];
+
+        if (profileIds.length === 0) {
+          return [];
+        }
+
+        // 4. 프로필 정별로 가져오기
+        const { data: profilesData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", profileIds);
+
+        if (profileError) throw profileError;
+
+        // 프로필 ID로 빠르게 조회할 수 있는 맵 만들기
+        const profileMap: Record<string, any> = {};
+        if (profilesData) {
+          profilesData.forEach((profile) => {
+            profileMap[profile.id] = profile;
+          });
+        }
+
+        console.log("득점 원시 데이터:", validGoalData);
+
+        // 선수별 득점 집계
+        const playerGoals: Record<
+          string,
+          { id: string; name: string; goals: number }
+        > = {};
+
+        validGoalData.forEach((goal) => {
+          const playerId = goal.profile_id || "";
+          const profile = profileMap[playerId];
+          const playerName = profile?.name || "알 수 없음";
+
+          if (!playerGoals[playerId]) {
+            playerGoals[playerId] = {
+              id: playerId,
+              name: playerName,
+              goals: 0,
+            };
+          }
+          playerGoals[playerId].goals += 1;
+        });
+
+        // 배열로 변환하고 득점 수 기준으로 정렬
+        const formattedData: TopScorer[] = Object.values(playerGoals)
+          .sort((a, b) => b.goals - a.goals)
+          .slice(0, 5);
+
+        console.log("집계된 득점자 데이터:", formattedData);
+        return formattedData;
+      } catch (error) {
+        console.error("득점자 정보 조회 중 오류:", error);
+        return [];
+      }
+    },
+    enabled: !!teamId,
+  });
+
+  // 어시스트 통계 조회
+  const { data: topAssists } = useQuery<TopAssist[]>({
+    queryKey: ["topAssists", teamId],
+    queryFn: async () => {
+      try {
+        // 기존 경기 ID 조회 코드는 제거하고 바로 어시스트 데이터를 team_id로 필터링
+        const { data: assistsData, error } = await supabase
+          .from("match_assists")
+          .select("*")
+          .eq("team_id", teamId) // team_id로 필터링
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        if (!assistsData || assistsData.length === 0) {
+          return [];
+        }
+
+        // 3. 어시스트 기록자 profile_id 수집 (undefined 제외)
+        const validAssistsData = assistsData.filter(
+          (assist) => assist.profile_id
+        );
+        if (validAssistsData.length === 0) {
+          return [];
+        }
+
+        const profileIds = [
+          ...new Set(validAssistsData.map((assist) => assist.profile_id)),
+        ];
+
+        if (profileIds.length === 0) {
+          return [];
+        }
+
+        // 4. 프로필 정별로 가져오기
+        const { data: profilesData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", profileIds);
+
+        if (profileError) throw profileError;
+
+        // 프로필 ID로 빠르게 조회할 수 있는 맵 만들기
+        const profileMap: Record<string, any> = {};
+        if (profilesData) {
+          profilesData.forEach((profile) => {
+            profileMap[profile.id] = profile;
+          });
+        }
+
+        // 선수별 어시스트 집계
+        const playerAssists: Record<
+          string,
+          { id: string; name: string; assists: number }
+        > = {};
+
+        validAssistsData.forEach((assist) => {
+          const playerId = assist.profile_id || "";
+          const profile = profileMap[playerId];
+          const playerName = profile?.name || "알 수 없음";
+
+          if (!playerAssists[playerId]) {
+            playerAssists[playerId] = {
+              id: playerId,
+              name: playerName,
+              assists: 0,
+            };
+          }
+          playerAssists[playerId].assists += 1;
+        });
+
+        // 배열로 변환하고 어시스트 수 기준으로 정렬
+        const formattedData: TopAssist[] = Object.values(playerAssists)
+          .sort((a, b) => b.assists - a.assists)
+          .slice(0, 5);
+
+        console.log("집계된 어시스트 데이터:", formattedData);
+        return formattedData;
       } catch (error) {
         console.error("어시스트 정보 조회 중 오류:", error);
-        return [
-          { id: "1", name: "박지성", assists: 6 },
-          { id: "2", name: "손흥민", assists: 4 },
-        ];
+        return [];
       }
     },
     enabled: !!teamId,
   });
 
   // MOM 통계 조회
-  const { data: momStats } = useQuery({
+  const { data: momStats } = useQuery<MomStat[]>({
     queryKey: ["momStats", teamId],
     queryFn: async () => {
       try {
-        // 실제 데이터 조회 시도
-        const { data, error } = await supabase.rpc("get_top_mom", {
-          team_id: teamId,
-        });
+        // 기존 경기 ID 조회 코드는 제거하고 바로 MOM 데이터를 team_id로 필터링
+        const { data: momData, error } = await supabase
+          .from("match_mom")
+          .select("*")
+          .eq("team_id", teamId) // team_id로 필터링
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
-          console.log("실제 MOM 데이터:", data);
-          return data;
+        if (!momData || momData.length === 0) {
+          return [];
         }
 
-        // 데이터가 없으면 샘플 데이터 반환
-        return [
-          { id: "1", name: "손흥민", count: 4 },
-          { id: "2", name: "박지성", count: 3 },
-          { id: "3", name: "김철수", count: 2 },
-          { id: "4", name: "이영희", count: 1 },
-          { id: "5", name: "홍길동", count: 1 },
+        // 3. MOM 수상자 profile_id 수집 (undefined 제외)
+        const validMomData = momData.filter((mom) => mom.profile_id);
+        if (validMomData.length === 0) {
+          return [];
+        }
+
+        const profileIds = [
+          ...new Set(validMomData.map((mom) => mom.profile_id)),
         ];
+
+        if (profileIds.length === 0) {
+          return [];
+        }
+
+        // 4. 프로필 정별로 가져오기
+        const { data: profilesData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", profileIds);
+
+        if (profileError) throw profileError;
+
+        // 프로필 ID로 빠르게 조회할 수 있는 맵 만들기
+        const profileMap: Record<string, any> = {};
+        if (profilesData) {
+          profilesData.forEach((profile) => {
+            profileMap[profile.id] = profile;
+          });
+        }
+
+        // 각 선수별 MOM 횟수 집계
+        const momCounts: Record<string, MomStat> = {};
+
+        validMomData.forEach((mom) => {
+          const playerId = mom.profile_id || "";
+          const profile = profileMap[playerId];
+          const playerName = profile?.name || "알 수 없음";
+
+          if (!momCounts[playerId]) {
+            momCounts[playerId] = {
+              id: playerId,
+              name: playerName,
+              count: 0,
+            };
+          }
+          momCounts[playerId].count += 1;
+        });
+
+        // 배열로 변환하고 MOM 횟수 기준으로 정렬
+        const result = Object.values(momCounts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        console.log("집계된 MOM 데이터:", result);
+        return result;
       } catch (error) {
         console.error("MOM 정보 조회 중 오류:", error);
-        return [
-          { id: "1", name: "손흥민", count: 4 },
-          { id: "2", name: "박지성", count: 3 },
-        ];
-      }
-    },
-    enabled: !!teamId,
-  });
-
-  // 참석률 통계 조회
-  const { data: attendanceStats } = useQuery({
-    queryKey: ["attendanceStats", teamId],
-    queryFn: async () => {
-      try {
-        // 실제 데이터 조회 시도
-        const { data, error } = await supabase.rpc("get_attendance_stats", {
-          team_id: teamId,
-        });
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          console.log("실제 참석률 데이터:", data);
-          return data;
-        }
-
-        // 데이터가 없으면 샘플 데이터 반환
-        return [
-          {
-            id: "1",
-            name: "홍길동",
-            attendanceRate: 90,
-            attended: 9,
-            total: 10,
-          },
-          {
-            id: "2",
-            name: "김철수",
-            attendanceRate: 85,
-            attended: 8,
-            total: 10,
-          },
-          {
-            id: "3",
-            name: "이영희",
-            attendanceRate: 80,
-            attended: 8,
-            total: 10,
-          },
-          {
-            id: "4",
-            name: "박지성",
-            attendanceRate: 75,
-            attended: 7,
-            total: 10,
-          },
-          {
-            id: "5",
-            name: "손흥민",
-            attendanceRate: 70,
-            attended: 7,
-            total: 10,
-          },
-        ];
-      } catch (error) {
-        console.error("참석률 정보 조회 중 오류:", error);
-        return [
-          {
-            id: "1",
-            name: "홍길동",
-            attendanceRate: 90,
-            attended: 9,
-            total: 10,
-          },
-          {
-            id: "2",
-            name: "김철수",
-            attendanceRate: 85,
-            attended: 8,
-            total: 10,
-          },
-        ];
+        return [];
       }
     },
     enabled: !!teamId,
@@ -529,6 +712,20 @@ export default function TeamDashboardPage() {
   // 로딩 상태 확인
   const isLoading =
     isStatsLoading || isRecentMatchesLoading || isScoreTimelineLoading;
+
+  // 데이터 기본값 설정
+  const defaultAttendanceStats = [
+    { status: "참석", count: 0 },
+    { status: "불참", count: 0 },
+    { status: "미정", count: 0 },
+  ];
+
+  const defaultPlayerAttendances: PlayerAttendance[] = [];
+  const defaultTopScorers = [];
+  const defaultTopAssists = [];
+  const defaultMomStats = [];
+  const defaultRecentMatches = [];
+  const defaultScoreTimeline = [];
 
   if (isLoading) {
     return (
@@ -707,20 +904,22 @@ export default function TeamDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex space-x-2 mt-2">
-                  {recentMatches?.slice(0, 5).map((match, index) => (
-                    <div
-                      key={index}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                        match.result === "W"
-                          ? "bg-green-500"
-                          : match.result === "D"
-                          ? "bg-yellow-500"
-                          : "bg-red-500"
-                      }`}
-                    >
-                      {match.result}
-                    </div>
-                  ))}
+                  {(recentMatches || defaultRecentMatches)
+                    ?.slice(0, 5)
+                    .map((match, index) => (
+                      <div
+                        key={index}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                          match.result === "W"
+                            ? "bg-green-500"
+                            : match.result === "D"
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
+                        }`}
+                      >
+                        {match.result}
+                      </div>
+                    ))}
                 </div>
 
                 <div className="text-sm text-muted-foreground mt-4">
@@ -729,29 +928,32 @@ export default function TeamDashboardPage() {
 
                 {/* 최근 경기 결과 리스트 */}
                 <div className="mt-2 text-sm">
-                  {recentMatches?.slice(0, 5).map((match, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between py-1 border-b text-xs"
-                    >
-                      <div>{match.formattedDate}</div>
+                  {(recentMatches || defaultRecentMatches)
+                    ?.slice(0, 5)
+                    .map((match, index) => (
                       <div
-                        className={`px-1 rounded ${
-                          match.result === "W"
-                            ? "text-green-600"
-                            : match.result === "D"
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                        }`}
+                        key={index}
+                        className="flex justify-between py-1 border-b text-xs"
                       >
-                        {match.is_home ? match.home_score : match.away_score} -{" "}
-                        {match.is_home ? match.away_score : match.home_score}
+                        <div>{match.formattedDate}</div>
+                        <div
+                          className={`px-1 rounded ${
+                            match.result === "W"
+                              ? "text-green-600"
+                              : match.result === "D"
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {match.is_home ? match.home_score : match.away_score}{" "}
+                          -{" "}
+                          {match.is_home ? match.away_score : match.home_score}
+                        </div>
+                        <div className="truncate max-w-[60px]">
+                          {match.opponentName}
+                        </div>
                       </div>
-                      <div className="truncate max-w-[60px]">
-                        {match.opponentName}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -766,7 +968,7 @@ export default function TeamDashboardPage() {
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={scoreTimeline}
+                    data={scoreTimeline || defaultScoreTimeline}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -783,6 +985,110 @@ export default function TeamDashboardPage() {
                     <Line type="monotone" dataKey="실점" stroke="#f87171" />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 출석률 통계 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                <div className="flex items-center">
+                  <Users className="mr-2 h-5 w-5 text-indigo-500" />
+                  출석률
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div>
+                {/* 팀 평균 출석률 */}
+                <div className="mb-4 text-center">
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    팀 평균 출석률
+                  </h3>
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-24 h-24">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-2xl font-bold">
+                          {teamAverageAttendance}%
+                        </span>
+                      </div>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              {
+                                name: "출석",
+                                value: teamAverageAttendance,
+                                color: "#818cf8",
+                              },
+                              {
+                                name: "미출석",
+                                value: 100 - teamAverageAttendance,
+                                color: "#e5e7eb",
+                              },
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={35}
+                            outerRadius={45}
+                            startAngle={90}
+                            endAngle={-270}
+                            dataKey="value"
+                          >
+                            {[
+                              {
+                                name: "출석",
+                                value: teamAverageAttendance,
+                                color: "#818cf8",
+                              },
+                              {
+                                name: "미출석",
+                                value: 100 - teamAverageAttendance,
+                                color: "#e5e7eb",
+                              },
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 플레이어별 출석률 순위 */}
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  선수별 출석률 순위
+                </h3>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={playerAttendances || defaultPlayerAttendances}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" domain={[0, 100]} />
+                      <YAxis type="category" dataKey="name" width={100} />
+                      <Tooltip formatter={(value) => [`${value}%`, "출석률"]} />
+                      <Bar
+                        dataKey="attendanceRate"
+                        name="출석률"
+                        fill="#818cf8"
+                      >
+                        {(playerAttendances || defaultPlayerAttendances)?.map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -806,7 +1112,7 @@ export default function TeamDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={topScorers}
+                      data={topScorers || defaultTopScorers}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -814,12 +1120,14 @@ export default function TeamDashboardPage() {
                       <YAxis type="category" dataKey="name" width={100} />
                       <Tooltip />
                       <Bar dataKey="goals" name="득점" fill="#4ade80">
-                        {topScorers?.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
+                        {(topScorers || defaultTopScorers)?.map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -842,7 +1150,7 @@ export default function TeamDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={topAssists}
+                      data={topAssists || defaultTopAssists}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -850,12 +1158,14 @@ export default function TeamDashboardPage() {
                       <YAxis type="category" dataKey="name" width={100} />
                       <Tooltip />
                       <Bar dataKey="assists" name="어시스트" fill="#60a5fa">
-                        {topAssists?.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
+                        {(topAssists || defaultTopAssists)?.map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -878,7 +1188,7 @@ export default function TeamDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={momStats}
+                      data={momStats || defaultMomStats}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -886,7 +1196,7 @@ export default function TeamDashboardPage() {
                       <YAxis type="category" dataKey="name" width={100} />
                       <Tooltip />
                       <Bar dataKey="count" name="MOM 횟수" fill="#fbbf24">
-                        {momStats?.map((entry, index) => (
+                        {(momStats || defaultMomStats)?.map((entry, index) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={COLORS[index % COLORS.length]}
@@ -899,13 +1209,13 @@ export default function TeamDashboardPage() {
               </CardContent>
             </Card>
 
-            {/* 참석률 통계 */}
+            {/* 출석률 통계 */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">
                   <div className="flex items-center">
                     <Users className="mr-2 h-5 w-5 text-indigo-500" />
-                    참석률
+                    출석률
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -914,24 +1224,22 @@ export default function TeamDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={attendanceStats?.slice(0, 5)}
+                      data={attendanceStats || defaultAttendanceStats}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="name" width={100} />
-                      <Tooltip formatter={(value) => [`${value}%`, "참석률"]} />
-                      <Bar
-                        dataKey="attendanceRate"
-                        name="참석률"
-                        fill="#818cf8"
-                      >
-                        {attendanceStats?.slice(0, 5).map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
+                      <YAxis type="category" dataKey="status" width={100} />
+                      <Tooltip formatter={(value) => [`${value}%`, "출석률"]} />
+                      <Bar dataKey="count" name="출석률" fill="#818cf8">
+                        {(attendanceStats || defaultAttendanceStats).map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>

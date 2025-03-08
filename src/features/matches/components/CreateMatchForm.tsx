@@ -483,7 +483,11 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                       <FormItem>
                         <FormLabel>게스트 팀 이름</FormLabel>
                         <FormControl>
-                          <Input placeholder="게스트 팀 이름" {...field} />
+                          <Input
+                            placeholder="게스트 팀 이름"
+                            {...field}
+                            value={field.value || ""} // 값이 undefined일 수 있으므로 빈 문자열로 기본값 설정
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -500,6 +504,7 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                           <Textarea
                             placeholder="게스트 팀에 대한 추가 정보"
                             {...field}
+                            value={field.value || ""} // 값이 undefined일 수 있으므로 빈 문자열로 기본값 설정
                           />
                         </FormControl>
                         <FormMessage />
@@ -515,7 +520,8 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                         <FormLabel>소속 클럽 (선택사항)</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}
+                          value={field.value || "none"}
+                          defaultValue="none"
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -523,6 +529,7 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
+                            <SelectItem value="none">선택 안함</SelectItem>
                             {teamData.clubs.map((club) => (
                               <SelectItem key={club.id} value={club.id}>
                                 {club.name}

@@ -26,42 +26,31 @@ export const matchFormSchema = z
     opponent_type: z.enum(["registered", "guest", "tbd"], {
       required_error: "상대팀 유형을 선택해주세요.",
     }),
-    opponent_team_id: z.string().optional(),
-    opponent_guest_team_name: z.string().optional(),
-    opponent_guest_team_description: z.string().optional(),
-    guest_club_id: z.string().optional(),
-    venue: z.string().min(1, "경기장 정보를 입력해주세요."),
-    stadium_id: z.string().optional(),
-    description: z.string().optional(),
-    competition_type: z.enum(["friendly", "league", "cup"], {
-      required_error: "대회 유형을 선택해주세요.",
-    }),
     match_type: z.enum(["home", "away", "neutral"], {
       required_error: "경기 유형을 선택해주세요.",
     }),
+    opponent_team_id: z.string().optional(),
+    opponent_guest_team_name: z.string().optional().default(""),
+    opponent_guest_team_description: z.string().optional().default(""),
+    guest_club_id: z.string().optional().default("none"),
+    venue: z.string().min(1, "경기장 정보를 입력해주세요."),
+    stadium_id: z.string().optional(),
+    description: z.string().optional(),
+    team_id: z.string().optional(),
   })
   .refine(
     (data) => {
       if (data.opponent_type === "registered") {
         return !!data.opponent_team_id;
       }
-      return true;
-    },
-    {
-      message: "등록된 팀을 선택해주세요.",
-      path: ["opponent_team_id"],
-    }
-  )
-  .refine(
-    (data) => {
       if (data.opponent_type === "guest") {
         return !!data.opponent_guest_team_name;
       }
       return true;
     },
     {
-      message: "게스트 팀 이름을 입력해주세요.",
-      path: ["opponent_guest_team_name"],
+      message: "상대팀 정보를 입력해주세요.",
+      path: ["opponent_team_id"],
     }
   );
 
