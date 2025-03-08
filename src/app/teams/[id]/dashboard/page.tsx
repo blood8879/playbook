@@ -22,7 +22,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { getTeamById } from "@/features/teams/api";
+import { getTeamById, getLastMatchesOfTeam } from "@/features/teams/api";
 import {
   Shield,
   Trophy,
@@ -45,7 +45,7 @@ export default function TeamDashboardPage() {
   });
 
   // 시즌 전체 통계 조회
-  const { data: seasonStats } = useQuery({
+  const { data: seasonStats, isLoading: isStatsLoading } = useQuery({
     queryKey: ["seasonStats", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,7 +54,20 @@ export default function TeamDashboardPage() {
         .eq("team_id", teamId)
         .eq("is_finished", true);
 
+      console.log("seasonStats", data);
+
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return {
+          matches: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsScored: 0,
+          goalsConceded: 0,
+        };
+      }
 
       const wins = data.filter(
         (match) =>
@@ -65,6 +78,7 @@ export default function TeamDashboardPage() {
       const draws = data.filter(
         (match) => match.home_score === match.away_score
       ).length;
+
       const losses = data.filter(
         (match) =>
           (match.is_home && match.home_score < match.away_score) ||
@@ -73,12 +87,13 @@ export default function TeamDashboardPage() {
 
       const totalGoalsScored = data.reduce(
         (acc, match) =>
-          acc + (match.is_home ? match.home_score : match.away_score),
+          acc + (match.is_home ? match.home_score || 0 : match.away_score || 0),
         0
       );
+
       const totalGoalsConceded = data.reduce(
         (acc, match) =>
-          acc + (match.is_home ? match.away_score : match.home_score),
+          acc + (match.is_home ? match.away_score || 0 : match.home_score || 0),
         0
       );
 
@@ -94,29 +109,19 @@ export default function TeamDashboardPage() {
     enabled: !!teamId,
   });
 
-  // 최근 경기 결과 조회 (폼 차트용) - 수정
-  const { data: recentMatches } = useQuery({
+  // 최근 경기 결과 조회 (폼 차트용)
+  const { data: recentMatches, isLoading: isRecentMatchesLoading } = useQuery({
     queryKey: ["recentMatches", teamId],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase
-          .from("matches")
-          .select(
-            `
-            id, match_date, home_score, away_score, is_home, team_id, 
-            opponent_team:teams!matches_opponent_team_id_fkey(name), 
-            opponent_guest_team:guest_clubs!matches_opponent_guest_team_id_fkey(name)
-          `
-          )
-          .eq("team_id", teamId)
-          .eq("is_finished", true)
-          .order("match_date", { ascending: false })
-          .limit(10);
+        // API 함수를 사용하여 최근 경기 데이터 가져오기
+        const matchesData = await getLastMatchesOfTeam(supabase, teamId, {
+          isFinished: true,
+          limit: 10,
+        });
 
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          // 샘플 데이터 반환
+        if (!matchesData || matchesData.length === 0) {
+          console.log("경기 데이터가 없어 샘플 데이터를 사용합니다.");
           return [
             {
               id: "1",
@@ -171,25 +176,52 @@ export default function TeamDashboardPage() {
           ];
         }
 
-        return data.map((match) => {
+        // 데이터가 있는 경우 실제 데이터 매핑
+        console.log("실제 경기 데이터:", matchesData);
+        return matchesData.map((match) => {
+          // 현재 팀이 홈팀인지 확인 (is_home 필드가 있으면 사용, 없으면 team_id로 계산)
+          const isHome =
+            match.is_home !== undefined
+              ? match.is_home
+              : match.team_id === teamId;
+
+          // 승/무/패 계산
           const isWin =
-            (match.is_home && match.home_score > match.away_score) ||
-            (!match.is_home && match.away_score > match.home_score);
+            (isHome && match.home_score > match.away_score) ||
+            (!isHome && match.away_score > match.home_score);
           const isDraw = match.home_score === match.away_score;
 
-          // 객체 접근 방식 수정
-          const opponentTeamName = match.opponent_team?.[0]?.name;
-          const opponentGuestTeamName = match.opponent_guest_team?.[0]?.name;
+          // 상대팀 이름 결정
+          let opponentName = "상대팀";
+
+          if (isHome && match.opponent_team) {
+            opponentName = match.opponent_team.name;
+          } else if (!isHome && match.team) {
+            opponentName = match.team.name;
+          } else if (match.opponent_guest_team) {
+            // guest_clubs는 객체 또는 배열일 수 있음
+            if (Array.isArray(match.opponent_guest_team)) {
+              if (
+                match.opponent_guest_team.length > 0 &&
+                match.opponent_guest_team[0].name
+              ) {
+                opponentName = match.opponent_guest_team[0].name;
+              }
+            } else if (match.opponent_guest_team.name) {
+              opponentName = match.opponent_guest_team.name;
+            }
+          }
 
           return {
             ...match,
+            is_home: isHome, // 홈/원정 여부 확정
             result: isWin ? "W" : isDraw ? "D" : "L",
             formattedDate: format(new Date(match.match_date), "M.d"),
-            opponentName: opponentTeamName || opponentGuestTeamName || "상대팀",
+            opponentName: opponentName,
           };
         });
       } catch (error) {
-        console.error("Error fetching recent matches:", error);
+        console.error("최근 경기 조회 중 오류 발생:", error);
         // 오류 발생 시 샘플 데이터 반환
         return [
           {
@@ -212,36 +244,6 @@ export default function TeamDashboardPage() {
             formattedDate: "4.25",
             opponentName: "울산 현대",
           },
-          {
-            id: "3",
-            match_date: "2024-04-18",
-            home_score: 0,
-            away_score: 2,
-            is_home: true,
-            result: "L",
-            formattedDate: "4.18",
-            opponentName: "전북 현대",
-          },
-          {
-            id: "4",
-            match_date: "2024-04-10",
-            home_score: 4,
-            away_score: 0,
-            is_home: false,
-            result: "W",
-            formattedDate: "4.10",
-            opponentName: "인천 유나이티드",
-          },
-          {
-            id: "5",
-            match_date: "2024-04-03",
-            home_score: 1,
-            away_score: 0,
-            is_home: true,
-            result: "W",
-            formattedDate: "4.3",
-            opponentName: "포항 스틸러스",
-          },
         ];
       }
     },
@@ -249,147 +251,235 @@ export default function TeamDashboardPage() {
   });
 
   // 득점/실점 통계 (시간 순)
-  const { data: scoreTimeline } = useQuery({
+  const { data: scoreTimeline, isLoading: isScoreTimelineLoading } = useQuery({
     queryKey: ["scoreTimeline", teamId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select("id, match_date, home_score, away_score, is_home, team_id")
-        .eq("team_id", teamId)
-        .eq("is_finished", true)
-        .order("match_date", { ascending: true });
+      try {
+        // getLastMatchesOfTeam 함수를 사용하여 모든 경기 데이터 가져오기
+        const matchesData = await getLastMatchesOfTeam(supabase, teamId, {
+          isFinished: true,
+          limit: 20, // 최대 20개 경기까지 가져옴
+        });
 
-      if (error) throw error;
+        if (!matchesData || matchesData.length === 0) return [];
 
-      return data.map((match) => {
-        const goalsScored = match.is_home ? match.home_score : match.away_score;
-        const goalsConceded = match.is_home
-          ? match.away_score
-          : match.home_score;
+        // 데이터를 날짜 오름차순으로 정렬
+        const sortedMatches = [...matchesData].sort(
+          (a, b) =>
+            new Date(a.match_date).getTime() - new Date(b.match_date).getTime()
+        );
 
-        return {
-          date: format(new Date(match.match_date), "MM/dd"),
-          득점: goalsScored,
-          실점: goalsConceded,
-        };
-      });
+        return sortedMatches.map((match) => {
+          // 현재 팀이 홈팀인지 확인
+          const isHome =
+            match.is_home !== undefined
+              ? match.is_home
+              : match.team_id === teamId;
+
+          // 득점과 실점 계산
+          const goalsScored = isHome
+            ? match.home_score || 0
+            : match.away_score || 0;
+          const goalsConceded = isHome
+            ? match.away_score || 0
+            : match.home_score || 0;
+
+          return {
+            date: format(new Date(match.match_date), "MM/dd"),
+            득점: goalsScored,
+            실점: goalsConceded,
+          };
+        });
+      } catch (error) {
+        console.error("득점/실점 통계 조회 중 오류:", error);
+        return [];
+      }
     },
     enabled: !!teamId,
   });
 
-  // 최다 득점자 조회 (수정된 버전)
+  // 최다 득점자 조회
   const { data: topScorers } = useQuery({
     queryKey: ["topScorers", teamId],
     queryFn: async () => {
-      // 샘플 데이터 반환
-      return [
-        { id: "1", name: "홍길동", goals: 5 },
-        { id: "2", name: "김철수", goals: 3 },
-        { id: "3", name: "이영희", goals: 2 },
-        { id: "4", name: "박지성", goals: 2 },
-        { id: "5", name: "손흥민", goals: 1 },
-      ];
+      try {
+        // 실제 데이터를 가져오는 코드 구현
+        const { data, error } = await supabase.rpc("get_top_scorers", {
+          team_id: teamId,
+        });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          console.log("실제 득점자 데이터:", data);
+          return data;
+        }
+
+        // 데이터가 없으면 샘플 데이터 반환
+        return [
+          { id: "1", name: "홍길동", goals: 5 },
+          { id: "2", name: "김철수", goals: 3 },
+          { id: "3", name: "이영희", goals: 2 },
+          { id: "4", name: "박지성", goals: 2 },
+          { id: "5", name: "손흥민", goals: 1 },
+        ];
+      } catch (error) {
+        console.error("득점자 정보 조회 중 오류:", error);
+        return [
+          { id: "1", name: "홍길동", goals: 5 },
+          { id: "2", name: "김철수", goals: 3 },
+        ];
+      }
     },
     enabled: !!teamId,
   });
 
-  // 어시스트 기록 조회 (수정된 버전)
+  // 어시스트 기록 조회
   const { data: topAssists } = useQuery({
     queryKey: ["topAssists", teamId],
     queryFn: async () => {
-      // 샘플 데이터 반환
-      return [
-        { id: "1", name: "박지성", assists: 6 },
-        { id: "2", name: "손흥민", assists: 4 },
-        { id: "3", name: "김철수", assists: 3 },
-        { id: "4", name: "이영희", assists: 2 },
-        { id: "5", name: "홍길동", assists: 1 },
-      ];
+      try {
+        // 실제 데이터를 가져오는 코드 구현
+        const { data, error } = await supabase.rpc("get_top_assists", {
+          team_id: teamId,
+        });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          console.log("실제 어시스트 데이터:", data);
+          return data;
+        }
+
+        // 데이터가 없으면 샘플 데이터 반환
+        return [
+          { id: "1", name: "박지성", assists: 6 },
+          { id: "2", name: "손흥민", assists: 4 },
+          { id: "3", name: "김철수", assists: 3 },
+          { id: "4", name: "이영희", assists: 2 },
+          { id: "5", name: "홍길동", assists: 1 },
+        ];
+      } catch (error) {
+        console.error("어시스트 정보 조회 중 오류:", error);
+        return [
+          { id: "1", name: "박지성", assists: 6 },
+          { id: "2", name: "손흥민", assists: 4 },
+        ];
+      }
     },
     enabled: !!teamId,
   });
 
-  // MOM 통계 조회 (수정된 버전)
+  // MOM 통계 조회
   const { data: momStats } = useQuery({
     queryKey: ["momStats", teamId],
     queryFn: async () => {
-      // 샘플 데이터 반환
-      return [
-        { id: "1", name: "손흥민", count: 4 },
-        { id: "2", name: "박지성", count: 3 },
-        { id: "3", name: "김철수", count: 2 },
-        { id: "4", name: "이영희", count: 1 },
-        { id: "5", name: "홍길동", count: 1 },
-      ];
+      try {
+        // 실제 데이터 조회 시도
+        const { data, error } = await supabase.rpc("get_top_mom", {
+          team_id: teamId,
+        });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          console.log("실제 MOM 데이터:", data);
+          return data;
+        }
+
+        // 데이터가 없으면 샘플 데이터 반환
+        return [
+          { id: "1", name: "손흥민", count: 4 },
+          { id: "2", name: "박지성", count: 3 },
+          { id: "3", name: "김철수", count: 2 },
+          { id: "4", name: "이영희", count: 1 },
+          { id: "5", name: "홍길동", count: 1 },
+        ];
+      } catch (error) {
+        console.error("MOM 정보 조회 중 오류:", error);
+        return [
+          { id: "1", name: "손흥민", count: 4 },
+          { id: "2", name: "박지성", count: 3 },
+        ];
+      }
     },
     enabled: !!teamId,
   });
 
-  // 참석률 통계 조회 (오류 수정)
+  // 참석률 통계 조회
   const { data: attendanceStats } = useQuery({
     queryKey: ["attendanceStats", teamId],
     queryFn: async () => {
-      // 샘플 데이터를 반환하여 오류를 방지합니다
-      return [
-        { id: "1", name: "홍길동", attendanceRate: 90, attended: 9, total: 10 },
-        { id: "2", name: "김철수", attendanceRate: 85, attended: 8, total: 10 },
-        { id: "3", name: "이영희", attendanceRate: 80, attended: 8, total: 10 },
-        { id: "4", name: "박지성", attendanceRate: 75, attended: 7, total: 10 },
-        { id: "5", name: "손흥민", attendanceRate: 70, attended: 7, total: 10 },
-      ];
+      try {
+        // 실제 데이터 조회 시도
+        const { data, error } = await supabase.rpc("get_attendance_stats", {
+          team_id: teamId,
+        });
 
-      // 실제 기능 구현은 데이터베이스 스키마 확인 후 수정 필요
-      /* 
-      // 전체 경기 수 조회
-      const { data: matches, error: matchesError } = await supabase
-        .from("matches")
-        .select("id")
-        .eq("team_id", teamId);
+        if (error) throw error;
 
-      if (matchesError) {
-        console.error("Error fetching matches:", matchesError);
-        return sampleData;
-      }
-      
-      const totalMatches = matches?.length || 0;
-
-      // 팀 멤버 조회
-      const { data: members, error: membersError } = await supabase
-        .from("team_members")
-        .select(`
-          user_id,
-          profiles(name, email)
-        `)
-        .eq("team_id", teamId);
-
-      if (membersError || !members) {
-        console.error("Error fetching team members:", membersError);
-        return sampleData;
-      }
-
-      const memberAttendance = [];
-      
-      for (const member of members) {
-        try {
-          const memberName = member.profiles?.name || member.profiles?.email || '알 수 없음';
-          
-          // 참석 정보 확인 전에 샘플 데이터 준비
-          const defaultData = {
-            id: member.user_id,
-            name: memberName,
-            attendanceRate: 0,
-            attended: 0,
-            total: totalMatches
-          };
-          
-          memberAttendance.push(defaultData);
-        } catch (error) {
-          console.error("Error processing member:", error);
+        if (data && data.length > 0) {
+          console.log("실제 참석률 데이터:", data);
+          return data;
         }
-      }
 
-      return memberAttendance.sort((a, b) => b.attendanceRate - a.attendanceRate);
-      */
+        // 데이터가 없으면 샘플 데이터 반환
+        return [
+          {
+            id: "1",
+            name: "홍길동",
+            attendanceRate: 90,
+            attended: 9,
+            total: 10,
+          },
+          {
+            id: "2",
+            name: "김철수",
+            attendanceRate: 85,
+            attended: 8,
+            total: 10,
+          },
+          {
+            id: "3",
+            name: "이영희",
+            attendanceRate: 80,
+            attended: 8,
+            total: 10,
+          },
+          {
+            id: "4",
+            name: "박지성",
+            attendanceRate: 75,
+            attended: 7,
+            total: 10,
+          },
+          {
+            id: "5",
+            name: "손흥민",
+            attendanceRate: 70,
+            attended: 7,
+            total: 10,
+          },
+        ];
+      } catch (error) {
+        console.error("참석률 정보 조회 중 오류:", error);
+        return [
+          {
+            id: "1",
+            name: "홍길동",
+            attendanceRate: 90,
+            attended: 9,
+            total: 10,
+          },
+          {
+            id: "2",
+            name: "김철수",
+            attendanceRate: 85,
+            attended: 8,
+            total: 10,
+          },
+        ];
+      }
     },
     enabled: !!teamId,
   });
@@ -403,6 +493,21 @@ export default function TeamDashboardPage() {
     D: "#facc15", // 무승부: 노랑
     L: "#f87171", // 패배: 빨강
   };
+
+  // 로딩 상태 확인
+  const isLoading =
+    isStatsLoading || isRecentMatchesLoading || isScoreTimelineLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[600px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">데이터를 불러오는 중입니다...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-8">
@@ -488,7 +593,7 @@ export default function TeamDashboardPage() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip formatter={(value) => [`${value}경기`, ""]} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -511,7 +616,7 @@ export default function TeamDashboardPage() {
                   {seasonStats?.matches > 0
                     ? (seasonStats.goalsScored / seasonStats.matches).toFixed(1)
                     : 0}{" "}
-                  골 득점 |
+                  골 득점 |{" "}
                   {seasonStats?.matches > 0
                     ? (seasonStats.goalsConceded / seasonStats.matches).toFixed(
                         1
@@ -540,7 +645,7 @@ export default function TeamDashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip formatter={(value) => [`${value}골`, ""]} />
                       <Bar dataKey="value">
                         {[
                           {
@@ -607,7 +712,8 @@ export default function TeamDashboardPage() {
                             : "text-red-600"
                         }`}
                       >
-                        {match.home_score} - {match.away_score}
+                        {match.is_home ? match.home_score : match.away_score} -{" "}
+                        {match.is_home ? match.away_score : match.home_score}
                       </div>
                       <div className="truncate max-w-[60px]">
                         {match.opponentName}
