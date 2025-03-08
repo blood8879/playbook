@@ -48,17 +48,47 @@ export default function TeamDashboardPage() {
   const { data: seasonStats, isLoading: isStatsLoading } = useQuery({
     queryKey: ["seasonStats", teamId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1. 이 팀이 홈팀인 경기 가져오기
+      const { data: homeMatches, error: homeError } = await supabase
         .from("matches")
-        .select("id, is_finished, home_score, away_score, is_home, team_id")
+        .select(
+          "id, is_finished, home_score, away_score, team_id, opponent_team_id"
+        )
         .eq("team_id", teamId)
         .eq("is_finished", true);
 
-      console.log("seasonStats", data);
+      if (homeError) throw homeError;
 
-      if (error) throw error;
+      // 2. 이 팀이 원정팀인 경기 가져오기
+      const { data: awayMatches, error: awayError } = await supabase
+        .from("matches")
+        .select(
+          "id, is_finished, home_score, away_score, team_id, opponent_team_id"
+        )
+        .eq("opponent_team_id", teamId)
+        .eq("is_finished", true);
 
-      if (!data || data.length === 0) {
+      if (awayError) throw awayError;
+
+      // 3. 홈 경기에는 is_home = true, 원정 경기에는 is_home = false 설정
+      const homeMatchesWithFlag =
+        homeMatches?.map((match) => ({
+          ...match,
+          is_home: true,
+        })) || [];
+
+      const awayMatchesWithFlag =
+        awayMatches?.map((match) => ({
+          ...match,
+          is_home: false,
+        })) || [];
+
+      // 4. 모든 경기 데이터 합치기
+      const allMatches = [...homeMatchesWithFlag, ...awayMatchesWithFlag];
+
+      console.log("모든 경기 데이터:", allMatches);
+
+      if (!allMatches || allMatches.length === 0) {
         return {
           matches: 0,
           wins: 0,
@@ -69,36 +99,38 @@ export default function TeamDashboardPage() {
         };
       }
 
-      const wins = data.filter(
+      // 5. 승/무/패 계산 로직 (기존 코드 그대로)
+      const wins = allMatches.filter(
         (match) =>
           (match.is_home && match.home_score > match.away_score) ||
           (!match.is_home && match.away_score > match.home_score)
       ).length;
 
-      const draws = data.filter(
+      const draws = allMatches.filter(
         (match) => match.home_score === match.away_score
       ).length;
 
-      const losses = data.filter(
+      const losses = allMatches.filter(
         (match) =>
           (match.is_home && match.home_score < match.away_score) ||
           (!match.is_home && match.away_score < match.home_score)
       ).length;
 
-      const totalGoalsScored = data.reduce(
+      // 6. 득점/실점 계산
+      const totalGoalsScored = allMatches.reduce(
         (acc, match) =>
           acc + (match.is_home ? match.home_score || 0 : match.away_score || 0),
         0
       );
 
-      const totalGoalsConceded = data.reduce(
+      const totalGoalsConceded = allMatches.reduce(
         (acc, match) =>
           acc + (match.is_home ? match.away_score || 0 : match.home_score || 0),
         0
       );
 
       return {
-        matches: data.length,
+        matches: allMatches.length,
         wins,
         draws,
         losses,
