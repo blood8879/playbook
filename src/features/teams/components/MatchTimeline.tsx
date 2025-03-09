@@ -4,6 +4,7 @@ import { Trophy, Dribbble } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSupabase } from "@/lib/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
 interface MatchTimelineProps {
   match: any;
@@ -329,27 +330,68 @@ export function MatchTimeline({
           <div className="relative pl-6">
             <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-gray-200"></div>
 
-            {displayGoals.map((goal) => (
-              <div
-                key={goal.id}
-                className="relative mb-5 flex items-center gap-3"
-              >
-                <div className="absolute left-0 w-4 h-4 bg-blue-100 border-2 border-blue-500 rounded-full -translate-x-2 flex items-center justify-center">
-                  <Dribbble className="w-2 h-2 text-blue-500" />
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3 shadow-sm w-full">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{goal.profiles?.name}</span>
-                    {goal.goal_type && (
-                      <span className="text-xs text-gray-600 bg-gray-200 px-2 py-0.5 rounded-full">
-                        {getGoalTypeText(goal.goal_type)}
+            {displayGoals.map((goal) => {
+              // 홈팀 골인지 확인 (goal.team_id와 homeTeamId 비교)
+              const isHomeTeamGoal = goal.team_id === match.team_id;
+
+              return (
+                <div
+                  key={goal.id}
+                  className="relative mb-5 flex items-center gap-3"
+                >
+                  <div
+                    className={`absolute left-0 w-4 h-4 ${
+                      isHomeTeamGoal
+                        ? "bg-blue-100 border-2 border-blue-500"
+                        : "bg-red-100 border-2 border-red-500"
+                    } rounded-full -translate-x-2 flex items-center justify-center`}
+                  >
+                    <Dribbble
+                      className={`w-2 h-2 ${
+                        isHomeTeamGoal ? "text-blue-500" : "text-red-500"
+                      }`}
+                    />
+                  </div>
+                  <div
+                    className={`${
+                      isHomeTeamGoal ? "bg-blue-50" : "bg-red-50"
+                    } rounded-lg p-3 shadow-sm w-full`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium flex items-center gap-2">
+                        {goal.profiles?.name}
+                        <Badge
+                          variant="outline"
+                          className={
+                            isHomeTeamGoal
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-red-100 text-red-700"
+                          }
+                        >
+                          {isHomeTeamGoal
+                            ? (match.user_team || match.team)?.name
+                            : (match.opposing_team || match.opponent_team)
+                                ?.name}
+                        </Badge>
                       </span>
-                    )}
+                      {goal.goal_type && (
+                        <span
+                          className={`text-xs ${
+                            isHomeTeamGoal
+                              ? "text-blue-600 bg-blue-100"
+                              : "text-red-600 bg-red-100"
+                          } px-2 py-0.5 rounded-full`}
+                        >
+                          {getGoalTypeText(goal.goal_type)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
+            {/* MOM은 기존과 동일하게 유지하나 어느 팀인지 표시 추가 */}
             {mom && (
               <div className="relative mb-5 flex items-center gap-3">
                 <div className="absolute left-0 w-4 h-4 bg-yellow-100 border-2 border-yellow-500 rounded-full -translate-x-2 flex items-center justify-center">
@@ -357,7 +399,20 @@ export function MatchTimeline({
                 </div>
                 <div className="bg-yellow-50 rounded-lg p-3 shadow-sm w-full">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{mom.profiles?.name}</span>
+                    <span className="font-medium flex items-center gap-2">
+                      {mom.profiles?.name}
+                      {mom.team_id && (
+                        <Badge
+                          variant="outline"
+                          className="bg-yellow-100 text-yellow-700"
+                        >
+                          {mom.team_id === match.team_id
+                            ? (match.user_team || match.team)?.name
+                            : (match.opposing_team || match.opponent_team)
+                                ?.name}
+                        </Badge>
+                      )}
+                    </span>
                     <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full">
                       MOM
                     </span>
