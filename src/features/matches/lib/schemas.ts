@@ -12,6 +12,7 @@ export const stadiumFormSchema = z.object({
 export type StadiumFormValues = z.infer<typeof stadiumFormSchema>;
 
 // 경기 생성 폼 스키마
+// src/features/matches/lib/schemas.ts
 export const matchFormSchema = z
   .object({
     match_date: z.date({
@@ -30,9 +31,9 @@ export const matchFormSchema = z
       required_error: "경기 유형을 선택해주세요.",
     }),
     opponent_team_id: z.string().optional(),
+    opponent_guest_team_id: z.string().optional(), // 기존 게스트팀 ID
     opponent_guest_team_name: z.string().optional().default(""),
     opponent_guest_team_description: z.string().optional().default(""),
-    guest_club_id: z.string().optional().default("none"),
     venue: z.string().min(1, "경기장 정보를 입력해주세요."),
     stadium_id: z.string().optional(),
     description: z.string().optional(),
@@ -44,7 +45,8 @@ export const matchFormSchema = z
         return !!data.opponent_team_id;
       }
       if (data.opponent_type === "guest") {
-        return !!data.opponent_guest_team_name;
+        // 기존 게스트팀이거나 새 게스트팀 이름이 있어야 함
+        return !!data.opponent_guest_team_id || !!data.opponent_guest_team_name;
       }
       return true;
     },

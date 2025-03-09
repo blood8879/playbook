@@ -14,7 +14,7 @@ export function useMatchForm(userId: string) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const { supabase } = useSupabase();
   // 경기장 생성 다이얼로그 상태
   const [isStadiumDialogOpen, setIsStadiumDialogOpen] = useState(false);
 
@@ -43,7 +43,6 @@ export function useMatchForm(userId: string) {
       // 게스트팀 관련 필드 기본값 설정
       opponent_guest_team_name: "",
       opponent_guest_team_description: "",
-      guest_club_id: "none", // 기본값 설정
     },
   });
 
@@ -56,14 +55,12 @@ export function useMatchForm(userId: string) {
     if (opponentType === "registered") {
       form.setValue("opponent_guest_team_name", undefined);
       form.setValue("opponent_guest_team_description", undefined);
-      form.setValue("guest_club_id", undefined);
     } else if (opponentType === "guest") {
       form.setValue("opponent_team_id", undefined);
     } else if (opponentType === "tbd") {
       form.setValue("opponent_team_id", undefined);
       form.setValue("opponent_guest_team_name", undefined);
       form.setValue("opponent_guest_team_description", undefined);
-      form.setValue("guest_club_id", undefined);
     }
   }, [opponentType, form]);
 
@@ -125,60 +122,130 @@ export function useMatchForm(userId: string) {
 
   // 폼 제출 핸들러
   const onSubmit = async (values: MatchFormValues) => {
-    // 필수 필드 검증
-    if (!values.match_date || !values.registration_deadline) {
-      toast({
-        title: "필수 정보 누락",
-        description: "경기 날짜와 참가 신청 마감일을 모두 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // 경기장 유효성 검사
-    if (
-      values.match_type === "home" &&
-      (!values.stadium_id || values.stadium_id === "none")
-    ) {
-      toast({
-        title: "경기장 정보 오류",
-        description: "홈 경기의 경우 경기장을 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // 상대팀 유효성 검사
-    if (values.opponent_type === "registered" && !values.opponent_team_id) {
-      toast({
-        title: "상대팀 정보 오류",
-        description: "등록된 팀을 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (values.opponent_type === "guest" && !values.opponent_guest_team_name) {
-      toast({
-        title: "상대팀 정보 오류",
-        description: "게스트 팀 이름을 입력해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
+      // 필수 필드 검증
+      if (!values.match_date || !values.registration_deadline) {
+        toast({
+          title: "필수 정보 누락",
+          description: "경기 날짜와 참가 신청 마감일을 모두 선택해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      // team_id 설정
-      const submissionData = {
-        ...values,
-        team_id: teamData?.team?.id || "",
-        is_home: values.match_type === "home",
+      // 경기장 유효성 검사
+      if (
+        values.match_type === "home" &&
+        (!values.stadium_id || values.stadium_id === "none")
+      ) {
+        toast({
+          title: "경기장 정보 오류",
+          description: "홈 경기의 경우 경기장을 선택해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 상대팀 유효성 검사
+      if (values.opponent_type === "registered" && !values.opponent_team_id) {
+        toast({
+          title: "상대팀 정보 오류",
+          description: "등록된 팀을 선택해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log("values", values);
+
+      // if (
+      //   values.opponent_type === "guest" &&
+      //   !values.opponent_guest_team_name
+      // ) {
+      //   toast({
+      //     title: "상대팀 정보 오류",
+      //     description: "게스트 팀 이름을 입력해주세요.",
+      //     variant: "destructive",
+      //   });
+      //   return;
+      // }
+
+      // 게스트팀 처리 로직 수정
+      let guestTeamId = null;
+
+      if (values.opponent_type === "guest") {
+        // 기존 게스트팀 선택 시에는 해당 ID를 그대로 사용
+        if (values.opponent_guest_team_id) {
+          guestTeamId = values.opponent_guest_team_id;
+        }
+        // 새 게스트팀 생성 시에만 새로운 레코드 추가
+        else if (values.opponent_guest_team_name) {
+          const { data: guestTeam, error: guestTeamError } = await supabase
+            .from("guest_clubs")
+            .insert({
+              team_id: teamData?.team?.id,
+              name: values.opponent_guest_team_name,
+              description: values.opponent_guest_team_description || null,
+              created_by: userId,
+            })
+            .select("id")
+            .single();
+
+          if (guestTeamError) {
+            console.error("게스트팀 생성 오류:", guestTeamError);
+            throw guestTeamError;
+          }
+          guestTeamId = guestTeam.id;
+        }
+      }
+
+      // 날짜 형식 처리 개선
+      const formattedMatchDate =
+        values.match_date instanceof Date
+          ? values.match_date.toISOString() // 전체 ISO 문자열 사용
+          : values.match_date;
+
+      const formattedDeadline =
+        values.registration_deadline instanceof Date
+          ? values.registration_deadline.toISOString() // 전체 ISO 문자열 사용
+          : values.registration_deadline;
+
+      // 데이터 준비 및 로깅
+      const matchData = {
+        team_id: teamData?.team?.id,
+        match_date: formattedMatchDate,
+        registration_deadline: formattedDeadline,
+
+        opponent_team_id:
+          values.opponent_type === "registered"
+            ? values.opponent_team_id
+            : null,
+        opponent_guest_team_id: guestTeamId,
+        stadium_id: values.stadium_id || null,
+        venue: values.venue || null,
+        description: values.description || null,
+        is_home: values.match_type === "home", // is_home 필드 추가
+        game_type: "11vs11", // 기본값 설정 (스키마에 필요한 경우)
+        is_tbd: values.opponent_type === "tbd", // is_tbd 필드 추가
+        competition_type: "friendly",
       };
 
-      // API 호출
-      const result = await createMatch(submissionData);
+      console.log("Supabase에 전송할 데이터:", matchData);
+
+      // 경기 생성
+      const { data: match, error: matchError } = await supabase
+        .from("matches")
+        .insert(matchData)
+        .select("id")
+        .single();
+
+      if (matchError) {
+        console.error("경기 생성 오류 상세:", matchError);
+        throw matchError;
+      }
+
+      console.log("생성된 경기 정보:", match);
 
       // 성공 처리
       toast({
@@ -188,14 +255,20 @@ export function useMatchForm(userId: string) {
 
       // 팀 페이지로 리다이렉트
       router.push(`/teams/${teamData?.team?.id}`);
-    } catch (error) {
-      console.error("경기 생성 오류:", error);
+    } catch (error: any) {
+      console.error("Error creating match:", error);
+      // 에러 메시지 개선
+      let errorMessage = "경기 생성 중 오류가 발생했습니다.";
+      if (error?.message) {
+        errorMessage += ` (${error.message})`;
+      }
+      if (error?.details) {
+        console.error("Error details:", error.details);
+      }
+
       toast({
-        title: "경기 생성 실패",
-        description:
-          error instanceof Error
-            ? error.message
-            : "알 수 없는 오류가 발생했습니다.",
+        title: "오류",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
