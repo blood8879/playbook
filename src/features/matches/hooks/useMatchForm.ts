@@ -187,7 +187,6 @@ export function useMatchForm(userId: string) {
               team_id: teamData?.team?.id,
               name: values.opponent_guest_team_name,
               description: values.opponent_guest_team_description || null,
-              created_by: userId,
             })
             .select("id")
             .single();
@@ -246,6 +245,67 @@ export function useMatchForm(userId: string) {
       }
 
       console.log("생성된 경기 정보:", match);
+
+      // 우리 팀 소속 플레이어들 가져오기
+      const { data: teamMembers, error: teamMembersError } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", teamData?.team?.id)
+        .eq("status", "active");
+
+      if (teamMembersError) {
+        console.error("팀 멤버 조회 오류:", teamMembersError);
+      } else if (teamMembers && teamMembers.length > 0) {
+        // 우리 팀 플레이어들을 미정 상태로 등록
+        const matchPlayers = teamMembers.map((member) => ({
+          match_id: match.id,
+          user_id: member.user_id,
+          status: "maybe", // 미정 상태
+          team_id: teamData?.team?.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+
+        const { error: insertError } = await supabase
+          .from("match_attendance")
+          .insert(matchPlayers);
+
+        if (insertError) {
+          console.error("참석 정보 등록 오류:", insertError);
+        }
+      }
+
+      // 등록된 상대팀인 경우, 상대팀 플레이어들도 등록
+      if (values.opponent_type === "registered" && values.opponent_team_id) {
+        const { data: opponentTeamMembers, error: opponentTeamMembersError } =
+          await supabase
+            .from("team_members")
+            .select("user_id")
+            .eq("team_id", values.opponent_team_id)
+            .eq("status", "active");
+
+        if (opponentTeamMembersError) {
+          console.error("상대팀 멤버 조회 오류:", opponentTeamMembersError);
+        } else if (opponentTeamMembers && opponentTeamMembers.length > 0) {
+          // 상대팀 플레이어들을 미정 상태로 등록
+          const opponentMatchPlayers = opponentTeamMembers.map((member) => ({
+            match_id: match.id,
+            user_id: member.user_id,
+            status: "maybe", // 미정 상태
+            team_id: values.opponent_team_id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }));
+
+          const { error: insertOpponentError } = await supabase
+            .from("match_attendance")
+            .insert(opponentMatchPlayers);
+
+          if (insertOpponentError) {
+            console.error("상대팀 참석 정보 등록 오류:", insertOpponentError);
+          }
+        }
+      }
 
       // 성공 처리
       toast({
