@@ -36,8 +36,23 @@ export default function MatchResultPage() {
 
   // 결과 업데이트 뮤테이션
   const { mutate: updateResult, isPending: isUpdating } = useMutation({
-    mutationFn: (data: any) =>
-      updateMatchResult(supabase, matchId, data, attendanceList),
+    mutationFn: (data: any) => {
+      console.log("경기 결과 업데이트 시작");
+      console.log("경기 데이터:", matchData);
+      console.log("참석자 목록:", attendanceList);
+
+      // 홈팀과 원정팀 ID 설정
+      const homeTeamId = matchData?.team_id;
+      const awayTeamId = matchData?.opponent_team_id;
+
+      console.log("홈팀 ID:", homeTeamId);
+      console.log("원정팀 ID:", awayTeamId);
+
+      return updateMatchResult(supabase, matchId, data, attendanceList, {
+        homeTeamId,
+        awayTeamId,
+      });
+    },
     onSuccess: () => {
       // 관련 쿼리 무효화
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });

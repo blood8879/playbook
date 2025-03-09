@@ -37,8 +37,6 @@ export function useMatchAttendance(matchId: string) {
     refetchOnWindowFocus: true, // 윈도우 포커스 시 재조회
   });
 
-  console.log("attendanceList", attendanceList);
-
   // 로컬 상태로 참석 여부 관리
   const [userAttendance, setUserAttendance] = useState<
     "attending" | "absent" | "maybe"

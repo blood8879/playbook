@@ -14,6 +14,17 @@ import { TeamMemberRole, TeamMemberStatus } from "./types/index";
  * Here we add new functions for head-to-head stats and match attendance management.
  */
 
+// PlayerStats 인터페이스 추가 (함수 외부에 정의)
+interface PlayerStats {
+  attendance: "attending" | "absent" | "maybe";
+  fieldGoals: number;
+  freeKickGoals: number;
+  penaltyGoals: number;
+  assists: number;
+  isMom: boolean;
+  teamId?: string;
+}
+
 export async function createTeam(
   supabase: SupabaseClient,
   data: TeamFormData,
@@ -823,7 +834,8 @@ export async function updateMatchResult(
   supabase: SupabaseClient,
   matchId: string,
   data: any,
-  attendanceList: any[]
+  attendanceList: any[],
+  teamInfo?: { homeTeamId: string; awayTeamId: string }
 ) {
   try {
     // 먼저 경기 정보를 가져옵니다
@@ -841,25 +853,14 @@ export async function updateMatchResult(
 
     if (matchError) throw matchError;
 
-    // 현재 로그인한 사용자의 ID 가져오기
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    console.log("경기 데이터:", matchData);
 
-    // 사용자가 속한 팀 목록 가져오기
-    const { data: userTeams } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", user?.id || "");
+    // 홈팀과 원정팀 ID 설정
+    const homeTeamId = teamInfo?.homeTeamId || matchData.team_id;
+    const awayTeamId = teamInfo?.awayTeamId || matchData.opponent_team_id;
 
-    // 사용자가 속한 팀 ID 목록
-    const userTeamIds = userTeams?.map((t) => t.team_id) || [];
-
-    // 사용자가 홈팀인지 원정팀인지 확인
-    const isUserHome = userTeamIds.includes(matchData.team_id);
-    const isUserAway =
-      matchData.opponent_team_id &&
-      userTeamIds.includes(matchData.opponent_team_id);
+    console.log("홈팀 ID:", homeTeamId);
+    console.log("원정팀 ID:", awayTeamId);
 
     // 1. 기존 데이터 삭제
     await Promise.all([
@@ -869,53 +870,54 @@ export async function updateMatchResult(
     ]);
 
     // 데이터 형식 확인 및 추출
-    const playerStats = data.playerStats || data;
+    const playerStats =
+      data.playerStats || (data as Record<string, PlayerStats>);
     const matchScore = data.matchScore || { homeScore: 0, awayScore: 0 };
 
     // 2. 참석 상태 업데이트
-    const attendancePromises = Object.entries(playerStats).map(
-      async ([userId, stats]: [string, any]) => {
-        // 먼저 기존 참석 정보 삭제
-        const { error: deleteError } = await supabase
-          .from("match_attendance")
-          .delete()
-          .eq("match_id", matchId)
-          .eq("user_id", userId);
+    const attendanceResults = [];
+    for (const [userId, stats] of Object.entries(playerStats)) {
+      // 타입 단언 추가
+      const playerStat = stats as PlayerStats;
 
-        if (deleteError) {
-          console.error("기존 참석 정보 삭제 중 오류:", deleteError);
-        }
+      // 플레이어의 팀 정보 찾기
+      const playerAttendance = attendanceList.find((a) => a.user_id === userId);
+      const playerTeamId = playerAttendance?.team_id;
 
-        // 새 참석 상태 추가
-        const { error } = await supabase.from("match_attendance").insert({
-          match_id: matchId,
-          user_id: userId,
-          status: stats.attendance,
-        });
+      console.log(`플레이어 ${userId}의 팀 ID:`, playerTeamId);
 
-        if (error) {
-          console.error("참석 상태 업데이트 오류:", error);
-          throw error;
-        }
+      // 먼저 기존 참석 정보 삭제
+      const { error: deleteError } = await supabase
+        .from("match_attendance")
+        .delete()
+        .eq("match_id", matchId)
+        .eq("user_id", userId);
 
-        return { userId, status: stats.attendance };
+      console.log("stats", playerStat);
+
+      // 새 참석 상태 추가
+      const { error } = await supabase.from("match_attendance").insert({
+        match_id: matchId,
+        user_id: userId,
+        status: playerStat.attendance,
+        team_id: playerTeamId,
+      });
+
+      if (error) {
+        console.error("참석 상태 업데이트 오류:", error);
+        throw error;
       }
-    );
 
-    // 참석 업데이트가 완료될 때까지 기다림
-    const attendanceResults = await Promise.all(attendancePromises);
-
-    // 3. 스코어 설정 (폼에서 계산된 값 사용)
-    let homeScore = matchScore.homeScore;
-    let awayScore = matchScore.awayScore;
-
-    // 사용자가 원정팀인 경우 스코어를 반대로 저장
-    if (isUserAway && !isUserHome) {
-      // 원정팀인 경우 스코어를 반대로 저장
-      const temp = homeScore;
-      homeScore = awayScore;
-      awayScore = temp;
+      attendanceResults.push({
+        userId,
+        status: playerStat.attendance,
+        teamId: playerTeamId,
+      });
     }
+
+    // 3. 스코어 설정
+    const homeScore = matchScore.homeScore;
+    const awayScore = matchScore.awayScore;
 
     // 4. matches 테이블 업데이트
     await supabase
@@ -928,75 +930,140 @@ export async function updateMatchResult(
       .eq("id", matchId);
 
     // 5. 골 기록 업데이트
-    const goalPromises = Object.entries(playerStats).flatMap(
-      ([userId, stats]: [string, any]) => {
-        const goals = [];
-        if (stats.fieldGoals > 0) {
-          for (let i = 0; i < stats.fieldGoals; i++) {
-            goals.push({
-              match_id: matchId,
-              user_id: userId,
-              goal_type: "field",
-            });
-          }
-        }
-        if (stats.freeKickGoals > 0) {
-          for (let i = 0; i < stats.freeKickGoals; i++) {
-            goals.push({
-              match_id: matchId,
-              user_id: userId,
-              goal_type: "freekick",
-            });
-          }
-        }
-        if (stats.penaltyGoals > 0) {
-          for (let i = 0; i < stats.penaltyGoals; i++) {
-            goals.push({
-              match_id: matchId,
-              user_id: userId,
-              goal_type: "penalty",
-            });
-          }
-        }
-        return goals.map((goal) => supabase.from("match_goals").insert(goal));
-      }
-    );
+    const goalInserts = [];
+    for (const [userId, stats] of Object.entries(playerStats)) {
+      // 타입 단언 추가
+      const playerStat = stats as PlayerStats;
 
-    // 어시스트 업데이트
-    const assistPromises = Object.entries(playerStats).flatMap(
-      ([userId, stats]: [string, any]) => {
-        const assists = [];
-        if (stats.assists > 0) {
-          for (let i = 0; i < stats.assists; i++) {
-            assists.push({
-              match_id: matchId,
-              user_id: userId,
-            });
-          }
-        }
-        return assists.map((assist) =>
-          supabase.from("match_assists").insert(assist)
-        );
-      }
-    );
+      // 플레이어의 팀 정보 찾기
+      const playerAttendance = attendanceList.find((a) => a.user_id === userId);
+      const playerTeamId = playerAttendance?.team_id;
 
-    // MOM 업데이트
-    const momUser = Object.entries(playerStats).find(
-      ([_, stats]: [string, any]) => stats.isMom
-    )?.[0];
-    if (momUser) {
-      await supabase.from("match_mom").insert({
-        match_id: matchId,
-        user_id: momUser,
-      });
+      console.log(
+        `골 수 기록 - 플레이어 ${userId}, 팀 ${playerTeamId}, 필드골: ${playerStat.fieldGoals}, 프리킥: ${playerStat.freeKickGoals}, 페널티: ${playerStat.penaltyGoals}`
+      );
+
+      if (playerStat.fieldGoals > 0) {
+        for (let i = 0; i < playerStat.fieldGoals; i++) {
+          goalInserts.push({
+            match_id: matchId,
+            user_id: userId,
+            goal_type: "field",
+            team_id: playerTeamId,
+          });
+        }
+      }
+
+      if (playerStat.freeKickGoals > 0) {
+        for (let i = 0; i < playerStat.freeKickGoals; i++) {
+          goalInserts.push({
+            match_id: matchId,
+            user_id: userId,
+            goal_type: "freekick",
+            team_id: playerTeamId,
+          });
+        }
+      }
+
+      if (playerStat.penaltyGoals > 0) {
+        for (let i = 0; i < playerStat.penaltyGoals; i++) {
+          goalInserts.push({
+            match_id: matchId,
+            user_id: userId,
+            goal_type: "penalty",
+            team_id: playerTeamId,
+          });
+        }
+      }
     }
 
-    // 모든 업데이트 실행
-    await Promise.all([
-      ...attendancePromises,
-      ...goalPromises,
-      ...assistPromises,
-    ]);
+    // 골 일괄 삽입
+    if (goalInserts.length > 0) {
+      console.log("저장할 골 데이터:", goalInserts);
+      const { data: goalData, error: goalError } = await supabase
+        .from("match_goals")
+        .insert(goalInserts)
+        .select();
+
+      if (goalError) {
+        console.error("골 저장 오류:", goalError);
+      } else {
+        console.log("저장된 골 데이터:", goalData);
+      }
+    }
+
+    // 6. 어시스트 업데이트
+    const assistInserts = [];
+    for (const [userId, stats] of Object.entries(playerStats)) {
+      // 타입 단언 추가
+      const playerStat = stats as PlayerStats;
+
+      // 플레이어의 팀 정보 찾기
+      const playerAttendance = attendanceList.find((a) => a.user_id === userId);
+      const playerTeamId = playerAttendance?.team_id;
+
+      console.log(
+        `어시스트 기록 - 플레이어 ${userId}, 팀 ${playerTeamId}, 어시스트: ${playerStat.assists}`
+      );
+
+      if (playerStat.assists > 0) {
+        for (let i = 0; i < playerStat.assists; i++) {
+          assistInserts.push({
+            match_id: matchId,
+            user_id: userId,
+            team_id: playerTeamId,
+          });
+        }
+      }
+    }
+
+    // 어시스트 일괄 삽입
+    if (assistInserts.length > 0) {
+      console.log("저장할 어시스트 데이터:", assistInserts);
+      const { data: assistData, error: assistError } = await supabase
+        .from("match_assists")
+        .insert(assistInserts)
+        .select();
+
+      if (assistError) {
+        console.error("어시스트 저장 오류:", assistError);
+      } else {
+        console.log("저장된 어시스트 데이터:", assistData);
+      }
+    }
+
+    // 7. MOM 업데이트
+    for (const [userId, stats] of Object.entries(playerStats)) {
+      // 타입 단언 추가
+      const playerStat = stats as PlayerStats;
+
+      if (playerStat.isMom) {
+        // 플레이어의 팀 정보 찾기
+        const playerAttendance = attendanceList.find(
+          (a) => a.user_id === userId
+        );
+        const playerTeamId = playerAttendance?.team_id;
+
+        console.log(`MOM 기록 - 플레이어 ${userId}, 팀 ${playerTeamId}`);
+
+        const { data: momData, error: momError } = await supabase
+          .from("match_mom")
+          .insert({
+            match_id: matchId,
+            user_id: userId,
+            team_id: playerTeamId,
+          })
+          .select();
+
+        if (momError) {
+          console.error("MOM 저장 오류:", momError);
+        } else {
+          console.log("저장된 MOM 데이터:", momData);
+        }
+
+        break; // MOM은 한 명만 있으므로 찾으면 루프 종료
+      }
+    }
 
     return true;
   } catch (error) {
