@@ -155,7 +155,10 @@ export async function createMatch(matchData: MatchFormValues): Promise<any> {
       matchData.opponent_guest_team_name
     ) {
       // 기존 게스트팀 확인 (게스트 클럽 ID가 제공된 경우)
-      if (matchData.guest_club_id && matchData.guest_club_id !== "none") {
+      if (
+        matchData.opponent_guest_team_id &&
+        matchData.opponent_guest_team_id !== "none"
+      ) {
         const { data: existingTeam, error } = await supabase
           .from("guest_clubs")
           .select("id")
