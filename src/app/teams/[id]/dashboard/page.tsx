@@ -79,6 +79,11 @@ export default function TeamDashboardPage() {
   const { supabase, user } = useSupabase();
   const teamId = params.id as string;
 
+  // 현재 연도 시작일과 끝일 계산
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(currentYear, 0, 1); // 1월 1일
+  const yearEnd = new Date(currentYear, 11, 31); // 12월 31일
+
   // 팀 정보 조회
   const { data: team } = useQuery({
     queryKey: ["team", teamId],
@@ -302,15 +307,39 @@ export default function TeamDashboardPage() {
 
   // 출석률 통계 조회 수정
   const { data: attendanceStats } = useQuery<AttendanceStat[]>({
-    queryKey: ["attendanceStats", teamId],
+    queryKey: ["attendanceStats", teamId, currentYear],
     queryFn: async () => {
       try {
+        // 현재 연도의 경기만 필터링하기 위한 시작일과 끝일 설정
+        const startDateStr = yearStart.toISOString();
+        const endDateStr = yearEnd.toISOString();
+
+        // 팀의 모든 경기 ID 가져오기 (현재 연도만)
+        const { data: matchesData, error: matchesError } = await supabase
+          .from("matches")
+          .select("id")
+          .eq("team_id", teamId)
+          .gte("match_date", startDateStr)
+          .lte("match_date", endDateStr);
+
+        if (matchesError) throw matchesError;
+
+        if (!matchesData || matchesData.length === 0) {
+          return [
+            { status: "참석", count: 0 },
+            { status: "불참", count: 0 },
+            { status: "미정", count: 0 },
+          ];
+        }
+
+        const matchIds = matchesData.map((match) => match.id);
+
         // team_id로 직접 필터링하여 출석 데이터 조회
         const { data, error } = await supabase
           .from("match_attendance")
-          .select("*")
+          .select("status")
           .eq("team_id", teamId)
-          .order("created_at", { ascending: false });
+          .in("match_id", matchIds);
 
         if (error) throw error;
 
@@ -329,7 +358,7 @@ export default function TeamDashboardPage() {
           return [
             { status: "참석", count: attendanceCount.attending || 0 },
             { status: "불참", count: attendanceCount.absent || 0 },
-            { status: "미정", count: attendanceCount.unknown || 0 },
+            { status: "미정", count: attendanceCount.maybe || 0 },
           ];
         }
 
@@ -351,22 +380,29 @@ export default function TeamDashboardPage() {
     enabled: !!teamId,
   });
 
-  // 플레이어별 출석률 통계 조회
+  // 플레이어별 출석률 통계 조회 - 연도별 필터링 추가
   const { data: playerAttendances } = useQuery<PlayerAttendance[]>({
-    queryKey: ["playerAttendances", teamId],
+    queryKey: ["playerAttendances", teamId, currentYear],
     queryFn: async () => {
       try {
-        // 1. 팀의 모든 경기 수 조회
+        // 현재 연도의 경기만 필터링하기 위한 시작일과 끝일 설정
+        const startDateStr = yearStart.toISOString();
+        const endDateStr = yearEnd.toISOString();
+
+        // 1. 팀의 현재 연도 모든 경기 수 조회
         const { data: matchesData, error: matchesError } = await supabase
           .from("matches")
           .select("id")
-          .or(`team_id.eq.${teamId},opponent_team_id.eq.${teamId}`)
-          .eq("is_finished", true);
+          .eq("team_id", teamId)
+          .gte("match_date", startDateStr)
+          .lte("match_date", endDateStr);
 
         if (matchesError) throw matchesError;
 
         const totalTeamMatches = matchesData?.length || 0;
         if (totalTeamMatches === 0) return [];
+
+        const matchIds = matchesData.map((match) => match.id);
 
         // 2. 팀에 소속된 모든 플레이어 조회
         const { data: teamMembers, error: teamMembersError } = await supabase
@@ -381,13 +417,12 @@ export default function TeamDashboardPage() {
             )
           `
           )
-          .eq("team_id", teamId)
-          .eq("status", "active");
+          .eq("team_id", teamId);
 
         if (teamMembersError) throw teamMembersError;
         if (!teamMembers || teamMembers.length === 0) return [];
 
-        // 3. 각 플레이어의 출석 데이터 조회
+        // 3. 각 플레이어의 출석 데이터 조회 - 현재 연도 경기만
         const playerAttendances: PlayerAttendance[] = [];
 
         for (const member of teamMembers) {
@@ -403,7 +438,8 @@ export default function TeamDashboardPage() {
               .from("match_attendance")
               .select("*")
               .eq("user_id", member.user_id)
-              .eq("status", "attending");
+              .eq("status", "attending")
+              .in("match_id", matchIds);
 
           if (attendanceError) throw attendanceError;
 
@@ -446,17 +482,38 @@ export default function TeamDashboardPage() {
     return Math.round(totalAttendanceRate / playerAttendances.length);
   }, [playerAttendances]);
 
-  // 득점자 통계 조회
+  // 득점자 통계 조회 - 연도별 필터링 및 user_id 사용으로 수정
+  // 득점자 통계 조회 부분
   const { data: topScorers } = useQuery<TopScorer[]>({
-    queryKey: ["topScorers", teamId],
+    queryKey: ["topScorers", teamId, currentYear],
     queryFn: async () => {
       try {
-        // 기존 경기 ID 조회 코드는 제거하고 바로 득점 데이터를 team_id로 필터링
+        // 현재 연도의 경기만 필터링하기 위한 시작일과 끝일 설정
+        const startDateStr = yearStart.toISOString();
+        const endDateStr = yearEnd.toISOString();
+
+        // 1. 팀의 현재 연도 모든 경기 ID 가져오기
+        const { data: matchesData, error: matchesError } = await supabase
+          .from("matches")
+          .select("id")
+          .eq("team_id", teamId)
+          .gte("match_date", startDateStr)
+          .lte("match_date", endDateStr);
+
+        if (matchesError) throw matchesError;
+
+        if (!matchesData || matchesData.length === 0) {
+          return [];
+        }
+
+        const matchIds = matchesData.map((match) => match.id);
+
+        // 2. 현재 연도 경기에 대한 득점 데이터 조회
         const { data: goalsData, error } = await supabase
           .from("match_goals")
           .select("*")
-          .eq("team_id", teamId) // team_id로 필터링
-          .order("created_at", { ascending: false });
+          .eq("team_id", teamId)
+          .in("match_id", matchIds);
 
         if (error) throw error;
 
@@ -464,25 +521,18 @@ export default function TeamDashboardPage() {
           return [];
         }
 
-        // 3. 득점자 profile_id 수집 (undefined 제외)
-        const validGoalData = goalsData.filter((goal) => goal.profile_id);
-        if (validGoalData.length === 0) {
+        // 3. 득점자 user_id 수집
+        const userIds = [...new Set(goalsData.map((goal) => goal.user_id))];
+
+        if (userIds.length === 0) {
           return [];
         }
 
-        const profileIds = [
-          ...new Set(validGoalData.map((goal) => goal.profile_id)),
-        ];
-
-        if (profileIds.length === 0) {
-          return [];
-        }
-
-        // 4. 프로필 정별로 가져오기
+        // 4. 프로필 정보 가져오기
         const { data: profilesData, error: profileError } = await supabase
           .from("profiles")
-          .select("*")
-          .in("id", profileIds);
+          .select("id, name, email")
+          .in("id", userIds);
 
         if (profileError) throw profileError;
 
@@ -494,16 +544,11 @@ export default function TeamDashboardPage() {
           });
         }
 
-        console.log("득점 원시 데이터:", validGoalData);
-
         // 선수별 득점 집계
-        const playerGoals: Record<
-          string,
-          { id: string; name: string; goals: number }
-        > = {};
+        const playerGoals: Record<string, TopScorer> = {};
 
-        validGoalData.forEach((goal) => {
-          const playerId = goal.profile_id || "";
+        goalsData.forEach((goal) => {
+          const playerId = goal.user_id;
           const profile = profileMap[playerId];
           const playerName = profile?.name || "알 수 없음";
 
@@ -518,7 +563,7 @@ export default function TeamDashboardPage() {
         });
 
         // 배열로 변환하고 득점 수 기준으로 정렬
-        const formattedData: TopScorer[] = Object.values(playerGoals)
+        const formattedData = Object.values(playerGoals)
           .sort((a, b) => b.goals - a.goals)
           .slice(0, 5);
 
@@ -532,17 +577,37 @@ export default function TeamDashboardPage() {
     enabled: !!teamId,
   });
 
-  // 어시스트 통계 조회
+  // 어시스트 통계 조회 부분
   const { data: topAssists } = useQuery<TopAssist[]>({
-    queryKey: ["topAssists", teamId],
+    queryKey: ["topAssists", teamId, currentYear],
     queryFn: async () => {
       try {
-        // 기존 경기 ID 조회 코드는 제거하고 바로 어시스트 데이터를 team_id로 필터링
+        // 현재 연도의 경기만 필터링하기 위한 시작일과 끝일 설정
+        const startDateStr = yearStart.toISOString();
+        const endDateStr = yearEnd.toISOString();
+
+        // 1. 팀의 현재 연도 모든 경기 ID 가져오기
+        const { data: matchesData, error: matchesError } = await supabase
+          .from("matches")
+          .select("id")
+          .eq("team_id", teamId)
+          .gte("match_date", startDateStr)
+          .lte("match_date", endDateStr);
+
+        if (matchesError) throw matchesError;
+
+        if (!matchesData || matchesData.length === 0) {
+          return [];
+        }
+
+        const matchIds = matchesData.map((match) => match.id);
+
+        // 2. 현재 연도 경기에 대한 어시스트 데이터 조회
         const { data: assistsData, error } = await supabase
           .from("match_assists")
           .select("*")
-          .eq("team_id", teamId) // team_id로 필터링
-          .order("created_at", { ascending: false });
+          .eq("team_id", teamId)
+          .in("match_id", matchIds);
 
         if (error) throw error;
 
@@ -550,27 +615,20 @@ export default function TeamDashboardPage() {
           return [];
         }
 
-        // 3. 어시스트 기록자 profile_id 수집 (undefined 제외)
-        const validAssistsData = assistsData.filter(
-          (assist) => assist.profile_id
-        );
-        if (validAssistsData.length === 0) {
-          return [];
-        }
-
-        const profileIds = [
-          ...new Set(validAssistsData.map((assist) => assist.profile_id)),
+        // 3. 어시스트 기록자 user_id 수집
+        const userIds = [
+          ...new Set(assistsData.map((assist) => assist.user_id)),
         ];
 
-        if (profileIds.length === 0) {
+        if (userIds.length === 0) {
           return [];
         }
 
-        // 4. 프로필 정별로 가져오기
+        // 4. 프로필 정보 가져오기
         const { data: profilesData, error: profileError } = await supabase
           .from("profiles")
-          .select("*")
-          .in("id", profileIds);
+          .select("id, name, email")
+          .in("id", userIds);
 
         if (profileError) throw profileError;
 
@@ -583,13 +641,10 @@ export default function TeamDashboardPage() {
         }
 
         // 선수별 어시스트 집계
-        const playerAssists: Record<
-          string,
-          { id: string; name: string; assists: number }
-        > = {};
+        const playerAssists: Record<string, TopAssist> = {};
 
-        validAssistsData.forEach((assist) => {
-          const playerId = assist.profile_id || "";
+        assistsData.forEach((assist) => {
+          const playerId = assist.user_id;
           const profile = profileMap[playerId];
           const playerName = profile?.name || "알 수 없음";
 
@@ -604,7 +659,7 @@ export default function TeamDashboardPage() {
         });
 
         // 배열로 변환하고 어시스트 수 기준으로 정렬
-        const formattedData: TopAssist[] = Object.values(playerAssists)
+        const formattedData = Object.values(playerAssists)
           .sort((a, b) => b.assists - a.assists)
           .slice(0, 5);
 
@@ -618,17 +673,37 @@ export default function TeamDashboardPage() {
     enabled: !!teamId,
   });
 
-  // MOM 통계 조회
+  // MOM 통계 조회 부분
   const { data: momStats } = useQuery<MomStat[]>({
-    queryKey: ["momStats", teamId],
+    queryKey: ["momStats", teamId, currentYear],
     queryFn: async () => {
       try {
-        // 기존 경기 ID 조회 코드는 제거하고 바로 MOM 데이터를 team_id로 필터링
+        // 현재 연도의 경기만 필터링하기 위한 시작일과 끝일 설정
+        const startDateStr = yearStart.toISOString();
+        const endDateStr = yearEnd.toISOString();
+
+        // 1. 팀의 현재 연도 모든 경기 ID 가져오기
+        const { data: matchesData, error: matchesError } = await supabase
+          .from("matches")
+          .select("id")
+          .eq("team_id", teamId)
+          .gte("match_date", startDateStr)
+          .lte("match_date", endDateStr);
+
+        if (matchesError) throw matchesError;
+
+        if (!matchesData || matchesData.length === 0) {
+          return [];
+        }
+
+        const matchIds = matchesData.map((match) => match.id);
+
+        // 2. 현재 연도 경기에 대한 MOM 데이터 조회
         const { data: momData, error } = await supabase
           .from("match_mom")
           .select("*")
-          .eq("team_id", teamId) // team_id로 필터링
-          .order("created_at", { ascending: false });
+          .eq("team_id", teamId)
+          .in("match_id", matchIds);
 
         if (error) throw error;
 
@@ -636,25 +711,18 @@ export default function TeamDashboardPage() {
           return [];
         }
 
-        // 3. MOM 수상자 profile_id 수집 (undefined 제외)
-        const validMomData = momData.filter((mom) => mom.profile_id);
-        if (validMomData.length === 0) {
+        // 3. MOM 수상자 user_id 수집
+        const userIds = [...new Set(momData.map((mom) => mom.user_id))];
+
+        if (userIds.length === 0) {
           return [];
         }
 
-        const profileIds = [
-          ...new Set(validMomData.map((mom) => mom.profile_id)),
-        ];
-
-        if (profileIds.length === 0) {
-          return [];
-        }
-
-        // 4. 프로필 정별로 가져오기
+        // 4. 프로필 정보 가져오기
         const { data: profilesData, error: profileError } = await supabase
           .from("profiles")
-          .select("*")
-          .in("id", profileIds);
+          .select("id, name, email")
+          .in("id", userIds);
 
         if (profileError) throw profileError;
 
@@ -669,8 +737,8 @@ export default function TeamDashboardPage() {
         // 각 선수별 MOM 횟수 집계
         const momCounts: Record<string, MomStat> = {};
 
-        validMomData.forEach((mom) => {
-          const playerId = mom.profile_id || "";
+        momData.forEach((mom) => {
+          const playerId = mom.user_id;
           const profile = profileMap[playerId];
           const playerName = profile?.name || "알 수 없음";
 
@@ -1103,7 +1171,7 @@ export default function TeamDashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   <div className="flex items-center">
                     <Trophy className="mr-2 h-5 w-5 text-amber-500" />
-                    최다 득점자
+                    최다 득점자 ({currentYear}년)
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1141,7 +1209,7 @@ export default function TeamDashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   <div className="flex items-center">
                     <Trophy className="mr-2 h-5 w-5 text-blue-500" />
-                    최다 어시스트
+                    최다 어시스트 ({currentYear}년)
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1179,7 +1247,7 @@ export default function TeamDashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   <div className="flex items-center">
                     <Star className="mr-2 h-5 w-5 text-yellow-500" />
-                    Man of the Match
+                    Man of the Match ({currentYear}년)
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1215,7 +1283,7 @@ export default function TeamDashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   <div className="flex items-center">
                     <Users className="mr-2 h-5 w-5 text-indigo-500" />
-                    출석률
+                    출석률 ({currentYear}년)
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1224,15 +1292,19 @@ export default function TeamDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={attendanceStats || defaultAttendanceStats}
+                      data={playerAttendances || defaultPlayerAttendances}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="status" width={100} />
+                      <YAxis type="category" dataKey="name" width={100} />
                       <Tooltip formatter={(value) => [`${value}%`, "출석률"]} />
-                      <Bar dataKey="count" name="출석률" fill="#818cf8">
-                        {(attendanceStats || defaultAttendanceStats).map(
+                      <Bar
+                        dataKey="attendanceRate"
+                        name="출석률"
+                        fill="#818cf8"
+                      >
+                        {(playerAttendances || defaultPlayerAttendances).map(
                           (entry, index) => (
                             <Cell
                               key={`cell-${index}`}
