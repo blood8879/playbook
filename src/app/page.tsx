@@ -336,11 +336,11 @@ export default async function HomePage() {
                   </div>
                 )}
 
-              <div className="mt-6">
+              {/* <div className="mt-6">
                 <Link href="/dashboard">
                   <Button>전체 대시보드로 이동</Button>
                 </Link>
-              </div>
+              </div> */}
             </section>
           </main>
         </div>
@@ -384,9 +384,9 @@ export default async function HomePage() {
                       <Link href="/profile">
                         <Button>프로필에서 설정하기</Button>
                       </Link>
-                      <Link href="/dashboard">
+                      {/* <Link href="/dashboard">
                         <Button variant="outline">대시보드로 이동</Button>
-                      </Link>
+                      </Link> */}
                     </div>
                   </div>
                 </CardContent>
