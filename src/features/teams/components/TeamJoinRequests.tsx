@@ -35,6 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TeamJoinRequestsSkeleton } from "./TeamJoinRequestsSkeleton";
+import {
+  UserPlus,
+  Users,
+  Hash,
+  MessageSquare,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 
 const POSITIONS = [
   { value: "GK", label: "GK" },
@@ -162,73 +170,95 @@ export function TeamJoinRequests({ teamId }: TeamJoinRequestsProps) {
   if (isLoading) return <TeamJoinRequestsSkeleton />;
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">가입 신청 목록</h2>
+    <div className="space-y-6">
       {requests?.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8">
-          새로운 가입 신청이 없습니다
-        </p>
+        <div className="rounded-lg border p-8 text-center">
+          <p className="text-muted-foreground">새로운 가입 신청이 없습니다</p>
+        </div>
       ) : (
         <div className="grid gap-4">
           {requests?.map((request) => (
-            <Card key={request.id}>
-              <CardHeader>
+            <Card
+              key={request.id}
+              className="overflow-hidden border-2 hover:shadow-md transition-shadow"
+            >
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 pb-3">
                 <div className="flex items-center space-x-3">
-                  <Avatar>
+                  <Avatar className="h-12 w-12 border-2 border-gray-200">
                     <AvatarImage src={request.profiles?.avatar_url} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                       {request.profiles?.name?.[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <CardTitle>{request.profiles?.name}</CardTitle>
+                    <CardTitle className="text-lg">
+                      {request.profiles?.name}
+                    </CardTitle>
                     <p className="text-sm text-muted-foreground">
                       {request.profiles?.email}
                     </p>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium">선호 포지션:</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {request.preferred_positions.map((pos) => (
-                        <span
-                          key={pos}
-                          className="text-xs bg-muted px-2 py-1 rounded"
-                        >
-                          {POSITIONS.find((p) => p.value === pos)?.label}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium flex items-center gap-1">
+                        <Users className="h-4 w-4 text-blue-500" />
+                        선호 포지션
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {request.preferred_positions.map((pos) => (
+                          <span
+                            key={pos}
+                            className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full"
+                          >
+                            {POSITIONS.find((p) => p.value === pos)?.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium flex items-center gap-1">
+                        <Hash className="h-4 w-4 text-blue-500" />
+                        선호 등번호
+                      </p>
+                      <p className="text-sm">
+                        <span className="inline-flex items-center justify-center bg-blue-100 text-blue-800 rounded-full w-6 h-6">
+                          {request.preferred_number}
                         </span>
-                      ))}
+                      </p>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">선호 등번호:</p>
-                    <p className="text-sm text-muted-foreground">
-                      {request.preferred_number}
-                    </p>
-                  </div>
+
                   {request.message && (
-                    <div>
-                      <p className="text-sm font-medium">가입 메시지:</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium flex items-center gap-1">
+                        <MessageSquare className="h-4 w-4 text-blue-500" />
+                        가입 메시지
+                      </p>
+                      <p className="text-sm bg-gray-50 p-3 rounded-md border">
                         {request.message}
                       </p>
                     </div>
                   )}
-                  <div className="flex gap-2">
+
+                  <div className="flex gap-2 pt-2">
                     <Button
                       onClick={() => handleApprove(request.id)}
-                      className="flex-1"
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
                     >
+                      <CheckCircle className="mr-2 h-4 w-4" />
                       승인하기
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => handleReject(request.id)}
-                      className="flex-1"
+                      className="flex-1 border-2"
                     >
+                      <XCircle className="mr-2 h-4 w-4" />
                       거절하기
                     </Button>
                   </div>
@@ -240,91 +270,96 @@ export function TeamJoinRequests({ teamId }: TeamJoinRequestsProps) {
       )}
 
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>가입 승인</DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogTitle className="text-center text-xl">가입 승인</DialogTitle>
+            <p className="text-sm text-muted-foreground text-center">
               이 팀원이 실제로 활동할 포지션과 등번호를 지정해주세요.
               <br />
               (신청자 선호:{" "}
               {requests
                 ?.find((r) => r.id === selectedRequestId)
-                ?.preferred_positions.map(
-                  (pos) => POSITIONS.find((p) => p.value === pos)?.label
-                )
-                .join(", ")}{" "}
-              /{" "}
+                ?.preferred_positions.join(", ")}
+              , 등번호:{" "}
               {
                 requests?.find((r) => r.id === selectedRequestId)
                   ?.preferred_number
               }
-              번)
+              )
             </p>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
               <label className="text-sm font-medium">포지션 지정</label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {POSITIONS.map((position) => (
+              <div className="grid grid-cols-3 gap-2">
+                {POSITIONS.map((pos) => (
                   <div
-                    key={position.value}
-                    className="flex items-center space-x-2"
+                    key={pos.value}
+                    className={`flex items-center space-x-2 rounded-md border p-2 ${
+                      selectedPositions.includes(pos.value)
+                        ? "bg-gradient-to-r from-blue-100 to-blue-50 border-blue-200"
+                        : ""
+                    }`}
                   >
                     <Checkbox
-                      id={position.value}
-                      checked={selectedPositions.includes(position.value)}
+                      id={`pos-${pos.value}`}
+                      checked={selectedPositions.includes(pos.value)}
                       onCheckedChange={(checked) => {
                         if (checked) {
                           setSelectedPositions([
                             ...selectedPositions,
-                            position.value,
+                            pos.value,
                           ]);
                         } else {
                           setSelectedPositions(
-                            selectedPositions.filter(
-                              (p) => p !== position.value
-                            )
+                            selectedPositions.filter((p) => p !== pos.value)
                           );
                         }
                       }}
                     />
                     <label
-                      htmlFor={position.value}
-                      className="text-sm leading-none"
+                      htmlFor={`pos-${pos.value}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      {position.label}
+                      {pos.label}
                     </label>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">등번호 지정</label>
               <Select value={selectedNumber} onValueChange={setSelectedNumber}>
-                <SelectTrigger className="mt-2">
+                <SelectTrigger className="border-2 focus:ring-blue-500">
                   <SelectValue placeholder="등번호 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableNumbers.map((number) => (
-                    <SelectItem key={number} value={number.toString()}>
-                      {number}
+                  {availableNumbers.map((num) => (
+                    <SelectItem key={num} value={String(num)}>
+                      {num}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                현재 사용 가능한 등번호 중에서 선택해주세요
-              </p>
             </div>
 
-            <Button
-              onClick={handleConfirmApprove}
-              disabled={respondMutation.isPending}
-              className="w-full"
-            >
-              {respondMutation.isPending ? "처리 중..." : "가입 승인"}
-            </Button>
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsApproveDialogOpen(false)}
+                className="flex-1 border-2"
+              >
+                취소
+              </Button>
+              <Button
+                onClick={handleConfirmApprove}
+                disabled={!selectedNumber || selectedPositions.length === 0}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+              >
+                승인 완료
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
