@@ -14,6 +14,7 @@ import {
   Search,
   Shield,
   PlusCircle,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,15 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
     enabled: !!teamData?.team?.id,
   });
 
+  // 30분 단위 시간 옵션 생성
+  const timeOptions = Array.from({ length: 48 }, (_, i) => {
+    const hour = Math.floor(i / 2)
+      .toString()
+      .padStart(2, "0");
+    const minute = i % 2 === 0 ? "00" : "30";
+    return { value: `${hour}:${minute}`, label: `${hour}:${minute}` };
+  });
+
   // 게스트팀 유형 변경 처리
   const handleGuestTeamTypeChange = (type: "existing" | "new") => {
     setGuestTeamType(type);
@@ -176,7 +186,6 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date < new Date()}
                           initialFocus
                           locale={ko}
                         />
@@ -187,16 +196,34 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                 )}
               />
 
-              {/* 경기 시간 */}
+              {/* 경기 시간 - 30분 단위로 Select 컴포넌트로 변경 */}
               <FormField
                 control={form.control}
                 name="match_time"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>경기 시간</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="시간 선택" />
+                          <Clock className="ml-auto h-4 w-4 opacity-50" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {timeOptions.map((time) => (
+                          <SelectItem key={time.value} value={time.value}>
+                            {time.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      30분 단위로 시간을 선택할 수 있습니다.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -234,8 +261,7 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
                           selected={field.value}
                           onSelect={field.onChange}
                           disabled={(date) =>
-                            date > form.getValues("match_date") ||
-                            date < new Date()
+                            date > form.getValues("match_date")
                           }
                           initialFocus
                           locale={ko}
