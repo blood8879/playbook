@@ -11,7 +11,17 @@ import { TeamManagement } from "@/features/teams/components/TeamManagement";
 import { TeamSchedule } from "@/features/teams/components/TeamSchedule";
 import { TeamStadiums } from "@/features/teams/components/TeamStadiums";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, Shield, Plus } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Shield,
+  Plus,
+  Trophy,
+  Clock,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Team } from "@/features/teams/types/index";
 import { TeamMatches } from "@/features/teams/components/TeamMatches";
@@ -73,112 +83,192 @@ export default function TeamDetailPage() {
 
   if ((!team && !isTeamLoading) || isTeamError) {
     return (
-      <div className="container py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">
-            팀을 찾을 수 없습니다
-          </h1>
-          <p className="mt-2 text-gray-600">
-            요청하신 팀이 존재하지 않거나 삭제되었을 수 있습니다.
-          </p>
-          <Button
-            className="mt-4"
-            variant="outline"
-            onClick={() => router.push("/teams")}
-          >
-            팀 목록으로 돌아가기
-          </Button>
-        </div>
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-red-700 to-red-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              팀을 찾을 수 없습니다
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="mb-4 text-gray-600">
+              요청하신 팀이 존재하지 않거나 삭제되었을 수 있습니다.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/teams")}
+              className="hover:bg-gray-100 transition-colors"
+            >
+              팀 목록으로 돌아가기
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (isTeamLoading) {
-    return <TeamDetailSkeleton />;
+    return (
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-blue-700 to-blue-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />팀 정보 로딩 중
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 flex items-center justify-center h-48">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="container py-8">
+    <div className="container max-w-6xl mx-auto py-8">
       {/* 팀 상세 정보 헤더 */}
-      <div className="flex items-start gap-6 mb-8">
-        <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg overflow-hidden flex items-center justify-center">
-          {team?.emblem_url ? (
-            <img
-              src={team.emblem_url}
-              alt={`${team.name} 로고`}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Shield className="w-12 h-12 text-slate-400" />
-          )}
-        </div>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">{team?.name}</h1>
-          <p className="mt-2 text-gray-600">{team?.description}</p>
-        </div>
-      </div>
-
-      <Separator className="my-6" />
+      <Card className="overflow-hidden border-0 shadow-md mb-6">
+        <CardHeader className="bg-gradient-to-r from-purple-900 to-blue-800 text-white p-6">
+          <div className="flex items-center gap-6">
+            <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-lg overflow-hidden flex items-center justify-center shadow-inner">
+              {team?.emblem_url ? (
+                <img
+                  src={team.emblem_url}
+                  alt={`${team.name} 로고`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Shield className="w-12 h-12 text-white" />
+              )}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold">{team?.name}</h1>
+              <p className="mt-2 text-white/80">{team?.description}</p>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* 메인 콘텐츠 */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 좌측: 다가오는 일정 */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Calendar className="w-5 h-5 mr-2" />
-              다가오는 일정
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TeamSchedule
-              matches={(matches as any) || []}
-              isLoading={isMatchesLoading}
-              upcoming={true}
-            />
-          </CardContent>
-        </Card>
+        {/* 좌측: 다가오는 일정 및 팀 정보 */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="overflow-hidden border-0 shadow-md">
+            <CardHeader className="bg-gradient-to-r from-blue-700 to-blue-500 text-white">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                다가오는 일정
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <TeamSchedule
+                matches={(matches as any) || []}
+                isLoading={isMatchesLoading}
+                upcoming={true}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-0 shadow-md">
+            <CardHeader className="bg-gradient-to-r from-green-700 to-green-500 text-white">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />팀 정보
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Users className="w-4 h-4 text-gray-500" />
+                  <span className="font-medium">멤버:</span>
+                  <span>{teamMember ? "소속 중" : "미소속"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Trophy className="w-4 h-4 text-gray-500" />
+                  <span className="font-medium">경기:</span>
+                  <span>{matches?.length || 0}경기</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Clock className="w-4 h-4 text-gray-500" />
+                  <span className="font-medium">생성일:</span>
+                  <span>{new Date(team?.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* 우측: 탭 콘텐츠 */}
         <div className="lg:col-span-3">
-          <Tabs defaultValue="schedule" className="w-full">
-            <TabsList>
-              <TabsTrigger value="schedule">일정 관리</TabsTrigger>
-              <TabsTrigger value="members">팀원 관리</TabsTrigger>
-              <TabsTrigger value="results">경기 결과</TabsTrigger>
-              <TabsTrigger value="stadiums">경기장 관리</TabsTrigger>
-            </TabsList>
+          <Card className="overflow-hidden border-0 shadow-md">
+            <CardContent className="p-0">
+              <Tabs defaultValue="schedule" className="w-full">
+                <div className="border-b">
+                  <TabsList className="w-full justify-start rounded-none h-14 bg-white px-4">
+                    <TabsTrigger
+                      value="schedule"
+                      className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-md"
+                    >
+                      일정 관리
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="members"
+                      className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-md"
+                    >
+                      팀원 관리
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="results"
+                      className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-md"
+                    >
+                      경기 결과
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="stadiums"
+                      className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 rounded-md"
+                    >
+                      경기장 관리
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-            <TabsContent value="schedule">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">경기 일정</h2>
-                {canManageMatches && (
-                  <Button onClick={handleCreateMatch}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    경기 생성
-                  </Button>
-                )}
-              </div>
-              <TeamMatches
-                matches={(matches as any) || []}
-                isLoading={isMatchesLoading}
-                teamId={teamId}
-                canManageMatches={canManageMatches}
-              />
-            </TabsContent>
+                <TabsContent value="schedule" className="p-6 m-0">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800">
+                      경기 일정
+                    </h2>
+                    {canManageMatches && (
+                      <Button
+                        onClick={handleCreateMatch}
+                        className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-md transition-all"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        경기 생성
+                      </Button>
+                    )}
+                  </div>
+                  <TeamMatches
+                    matches={(matches as any) || []}
+                    isLoading={isMatchesLoading}
+                    teamId={teamId}
+                    canManageMatches={canManageMatches}
+                  />
+                </TabsContent>
 
-            <TabsContent value="members">
-              <TeamManagement teamId={teamId} isLeader={isLeader} />
-            </TabsContent>
+                <TabsContent value="members" className="p-6 m-0">
+                  <TeamManagement teamId={teamId} isLeader={isLeader} />
+                </TabsContent>
 
-            <TabsContent value="results">
-              <TeamMatchResults teamId={teamId} />
-            </TabsContent>
+                <TabsContent value="results" className="p-6 m-0">
+                  <TeamMatchResults teamId={teamId} />
+                </TabsContent>
 
-            <TabsContent value="stadiums">
-              <TeamStadiums teamId={teamId} isLeader={isAdmin} />
-            </TabsContent>
-          </Tabs>
+                <TabsContent value="stadiums" className="p-6 m-0">
+                  <TeamStadiums teamId={teamId} isLeader={isAdmin} />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

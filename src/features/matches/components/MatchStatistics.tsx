@@ -290,11 +290,11 @@ export function MatchStatistics({
                   // 결과에 따른 배경색 설정
                   let resultBg = "";
                   if (result === "W") {
-                    resultBg = "bg-green-500";
+                    resultBg = "#13CF00";
                   } else if (result === "L") {
-                    resultBg = "bg-red-500";
+                    resultBg = "#D81920";
                   } else {
-                    resultBg = "bg-gray-500";
+                    resultBg = "#C3B3C5";
                   }
 
                   return (
@@ -364,11 +364,11 @@ export function MatchStatistics({
                   // 결과에 따른 배경색 설정
                   let resultBg = "";
                   if (result === "W") {
-                    resultBg = "bg-green-500";
+                    resultBg = "#13CF00";
                   } else if (result === "L") {
-                    resultBg = "bg-red-500";
+                    resultBg = "#D81920";
                   } else {
-                    resultBg = "bg-gray-500";
+                    resultBg = "#C3B3C5";
                   }
 
                   return (
