@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TeamMatch, MatchAttendance } from "@/features/teams/types/index";
 import { Badge } from "@/components/ui/badge";
-import { Users, Home, ExternalLink } from "lucide-react";
+import { Users, Home, ExternalLink, TrendingUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface MatchResultFormProps {
@@ -258,95 +258,114 @@ export function MatchResultForm({
   return (
     <div className="space-y-8">
       {/* 현재 스코어 표시 */}
-      <div className="bg-muted p-4 rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">현재 스코어</h2>
-        <div className="flex items-center justify-center gap-4">
-          <div className="text-center">
-            <div className="text-sm font-medium mb-1">
-              {homeTeamName || "홈팀"}
+      <Card className="overflow-hidden border-0 shadow-md mb-6">
+        <CardHeader className="bg-gradient-to-r from-blue-800 to-blue-600 text-white">
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            현재 스코어
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center gap-8 py-4">
+            <div className="text-center">
+              <div className="text-lg font-medium mb-2">
+                {homeTeamName || "홈팀"}
+              </div>
+              <div className="text-5xl font-bold text-blue-600">
+                {homeScore}
+              </div>
             </div>
-            <div className="text-3xl font-bold">{homeScore}</div>
-          </div>
-          <div className="text-2xl font-bold">vs</div>
-          <div className="text-center">
-            <div className="text-sm font-medium mb-1">
-              {awayTeamName || "원정팀"}
+            <div className="text-3xl font-bold text-gray-400">vs</div>
+            <div className="text-center">
+              <div className="text-lg font-medium mb-2">
+                {awayTeamName || "원정팀"}
+              </div>
+              <div className="text-5xl font-bold text-red-600">{awayScore}</div>
             </div>
-            <div className="text-3xl font-bold">{awayScore}</div>
           </div>
-        </div>
-        <p className="text-center text-sm text-muted-foreground mt-2">
-          * 참석자의 골 기록에 따라 자동으로 계산됩니다
-        </p>
-      </div>
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            * 참석자의 골 기록에 따라 자동으로 계산됩니다
+          </p>
+        </CardContent>
+      </Card>
 
       {/* 참석자 스탯 테이블 */}
       <div ref={statsTableRef}>
-        <h2 className="text-xl font-semibold mb-4">참석자 경기 기록</h2>
+        <Card className="overflow-hidden border-0 shadow-md mb-6">
+          <CardHeader className="bg-gradient-to-r from-green-700 to-green-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              참석자 경기 기록
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {/* 홈팀 선수 */}
+            {homeTeamPlayers && homeTeamPlayers.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-2 flex items-center">
+                  <Home className="w-4 h-4 mr-2" />
+                  {homeTeamName || "홈팀"} 선수
+                </h3>
+                <Card className="p-4 bg-blue-50">
+                  <PlayerStatsTable
+                    players={homeTeamPlayers}
+                    playerStats={playerStats}
+                    handleAttendanceChange={handleAttendanceChange}
+                    handleStatChange={handleStatChange}
+                    getTeamBadge={getTeamBadge}
+                  />
+                </Card>
+              </div>
+            )}
 
-        {/* 홈팀 선수 */}
-        {homeTeamPlayers && homeTeamPlayers.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2 flex items-center">
-              <Home className="w-4 h-4 mr-2" />
-              {homeTeamName || "홈팀"} 선수
-            </h3>
-            <Card className="p-6">
-              <PlayerStatsTable
-                players={homeTeamPlayers}
-                playerStats={playerStats}
-                handleAttendanceChange={handleAttendanceChange}
-                handleStatChange={handleStatChange}
-                getTeamBadge={getTeamBadge}
-              />
-            </Card>
-          </div>
-        )}
+            {/* 원정팀 선수 */}
+            {awayTeamPlayers && awayTeamPlayers.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-2 flex items-center">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  {awayTeamName || "원정팀"} 선수
+                </h3>
+                <Card className="p-4 bg-red-50">
+                  <PlayerStatsTable
+                    players={awayTeamPlayers}
+                    playerStats={playerStats}
+                    handleAttendanceChange={handleAttendanceChange}
+                    handleStatChange={handleStatChange}
+                    getTeamBadge={getTeamBadge}
+                  />
+                </Card>
+              </div>
+            )}
 
-        {/* 원정팀 선수 */}
-        {awayTeamPlayers && awayTeamPlayers.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2 flex items-center">
-              <ExternalLink className="w-4 h-4 mr-2" />
-              {awayTeamName || "원정팀"} 선수
-            </h3>
-            <Card className="p-6">
-              <PlayerStatsTable
-                players={awayTeamPlayers}
-                playerStats={playerStats}
-                handleAttendanceChange={handleAttendanceChange}
-                handleStatChange={handleStatChange}
-                getTeamBadge={getTeamBadge}
-              />
-            </Card>
-          </div>
-        )}
-
-        {/* 팀 미지정 선수 */}
-        {unassignedPlayers && unassignedPlayers.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2">팀 미지정 선수</h3>
-            <Card className="p-6">
-              <PlayerStatsTable
-                players={unassignedPlayers}
-                playerStats={playerStats}
-                handleAttendanceChange={handleAttendanceChange}
-                handleStatChange={handleStatChange}
-                getTeamBadge={getTeamBadge}
-              />
-            </Card>
-          </div>
-        )}
+            {/* 팀 미지정 선수 */}
+            {unassignedPlayers && unassignedPlayers.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-2">팀 미지정 선수</h3>
+                <Card className="p-4 bg-gray-50">
+                  <PlayerStatsTable
+                    players={unassignedPlayers}
+                    playerStats={playerStats}
+                    handleAttendanceChange={handleAttendanceChange}
+                    handleStatChange={handleStatChange}
+                    getTeamBadge={getTeamBadge}
+                  />
+                </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* 미정/불참 플레이어 섹션 */}
       {nonAttendingPlayers && nonAttendingPlayers.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            미정/불참 플레이어
-          </h2>
-          <Card className="p-6">
+        <Card className="overflow-hidden border-0 shadow-md mb-6">
+          <CardHeader className="bg-gradient-to-r from-gray-700 to-gray-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              미정/불참 플레이어
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {nonAttendingPlayers.map((attendance) => {
                 const stats = playerStats[attendance.user_id] || {
@@ -361,7 +380,7 @@ export function MatchResultForm({
                 return (
                   <div
                     key={attendance.user_id}
-                    className="flex items-center justify-between p-3 border rounded-md"
+                    className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-2">
                       <span>
@@ -396,12 +415,16 @@ export function MatchResultForm({
                 );
               })}
             </div>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="mt-6 flex justify-end">
-        <Button onClick={handleSubmit} disabled={isUpdating}>
+        <Button
+          onClick={handleSubmit}
+          disabled={isUpdating}
+          className="bg-purple-900 hover:bg-purple-800"
+        >
           {isUpdating ? "저장 중..." : "결과 저장"}
         </Button>
       </div>

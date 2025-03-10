@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, Calendar, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // 커스텀 훅 임포트
 import { useMatchDetail } from "@/features/matches/hooks/useMatchDetail";
@@ -89,22 +90,43 @@ export default function MatchDetailPage() {
 
   if (isMatchLoading || isAttendanceLoading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="w-6 h-6 animate-spin" />
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-blue-700 to-blue-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              경기 정보 로딩 중
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 flex items-center justify-center h-48">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!matchData || isMatchError) {
     return (
-      <div className="container py-8">
-        <p>경기를 찾을 수 없습니다.</p>
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/teams/${matchData?.team_id}`)}
-        >
-          경기 목록으로 돌아가기
-        </Button>
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-red-700 to-red-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              경기를 찾을 수 없습니다
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="mb-4">요청하신 경기 정보를 찾을 수 없습니다.</p>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/teams/${matchData?.team_id}`)}
+              className="hover:bg-gray-100 transition-colors"
+            >
+              경기 목록으로 돌아가기
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -112,26 +134,50 @@ export default function MatchDetailPage() {
   return (
     <div className="container py-8 max-w-4xl mx-auto">
       {/* 경기 헤더 */}
-      <MatchHeader matchData={matchData} />
+      <Card className="overflow-hidden border-0 shadow-md mb-6">
+        <CardHeader className="bg-gradient-to-r from-purple-900 to-blue-800 text-white">
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            경기 정보
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <MatchHeader matchData={matchData} />
+        </CardContent>
+      </Card>
 
       {/* 운영진에게만 결과 수정 버튼 표시 */}
       {isAdmin && (
-        <MatchActions
-          matchData={matchData}
-          isAdmin={isAdmin}
-          isOpponentTeamUndecided={isOpponentTeamUndecided}
-          deleteMutation={deleteMutation}
-        />
+        <Card className="overflow-hidden border-0 shadow-md mb-6">
+          <CardHeader className="bg-gradient-to-r from-amber-600 to-amber-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              관리자 작업
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <MatchActions
+              matchData={matchData}
+              isAdmin={isAdmin}
+              isOpponentTeamUndecided={isOpponentTeamUndecided}
+              deleteMutation={deleteMutation}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {matchData?.is_finished ? (
         // 경기가 종료된 경우
-        <MatchTimeline
-          match={matchData}
-          goals={goals || []}
-          assists={assists || []}
-          mom={mom}
-        />
+        <Card className="overflow-hidden border-0 shadow-md mb-6">
+          <CardContent className="p-6">
+            <MatchTimeline
+              match={matchData}
+              goals={goals || []}
+              assists={assists || []}
+              mom={mom}
+            />
+          </CardContent>
+        </Card>
       ) : (
         // 경기가 종료되지 않은 경우
         <>
@@ -152,14 +198,24 @@ export default function MatchDetailPage() {
       )}
 
       {/* 참석 현황 */}
-      <MatchAttendance
-        matchData={matchData}
-        attendanceList={attendanceList || []}
-        attendanceCounts={attendanceCounts}
-        userAttendance={userAttendance}
-        handleAttendanceChange={handleAttendanceChange}
-        isUpdating={isUpdating}
-      />
+      <Card className="overflow-hidden border-0 shadow-md mb-6 mt-6">
+        <CardHeader className="bg-gradient-to-r from-blue-700 to-blue-500 text-white">
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            참석 현황
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <MatchAttendance
+            matchData={matchData}
+            attendanceList={attendanceList || []}
+            attendanceCounts={attendanceCounts}
+            userAttendance={userAttendance}
+            handleAttendanceChange={handleAttendanceChange}
+            isUpdating={isUpdating}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

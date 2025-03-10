@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Shield, MapPin } from "lucide-react";
+import { Shield, MapPin, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { TeamMatch } from "@/features/teams/types/index";
@@ -21,7 +21,7 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
   const isHome = matchData.is_home;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {userTeam?.emblem_url ? (
@@ -30,10 +30,12 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
               alt={userTeam?.name || ""}
               width={64}
               height={64}
-              className="rounded-full"
+              className="rounded-full border-4 border-white shadow-md"
             />
           ) : (
-            <Shield className="w-6 h-6" />
+            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+              <Shield className="w-8 h-8 text-gray-500" />
+            </div>
           )}
           <div className="flex flex-col">
             <span className="text-xl font-bold">{userTeam?.name}</span>
@@ -43,7 +45,7 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
           </div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold mb-2">
+          <div className="text-3xl font-bold mb-2">
             {format(new Date(matchData.match_date), "HH:mm")}
           </div>
           <div className="text-sm text-gray-600">
@@ -52,7 +54,7 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
             })}
           </div>
           {matchData.is_finished && (
-            <div className="font-bold text-xl mt-1">
+            <div className="font-bold text-2xl mt-2 bg-gray-800 text-white px-4 py-1 rounded">
               {isHome ? matchData.home_score : matchData.away_score} :{" "}
               {isHome ? matchData.away_score : matchData.home_score}
             </div>
@@ -73,14 +75,16 @@ export function MatchHeader({ matchData }: MatchHeaderProps) {
               alt={opposingTeam?.name || ""}
               width={64}
               height={64}
-              className="rounded-full"
+              className="rounded-full border-4 border-white shadow-md"
             />
           ) : (
-            <Shield className="w-6 h-6" />
+            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+              <Shield className="w-8 h-8 text-gray-500" />
+            </div>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+      <div className="flex items-center gap-2 text-sm text-gray-600 mt-4 bg-gray-50 p-2 rounded">
         <MapPin className="w-4 h-4" />
         {matchData.stadium?.name ? (
           <>

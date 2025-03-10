@@ -9,8 +9,9 @@ import {
   updateMatchResult,
 } from "@/features/teams/api";
 import { MatchResultForm } from "@/features/teams/components/MatchResultForm";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trophy, ClipboardEdit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function MatchResultPage() {
   const params = useParams();
@@ -88,15 +89,24 @@ export default function MatchResultPage() {
   // 경기 데이터가 없는 경우
   if (!matchData) {
     return (
-      <div className="container mx-auto py-6">
-        <h1 className="text-2xl font-bold mb-6">경기를 찾을 수 없습니다</h1>
-        <p>요청하신 경기 정보를 찾을 수 없습니다.</p>
-        <button
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          onClick={() => router.back()}
-        >
-          이전 페이지로 돌아가기
-        </button>
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-red-700 to-red-500 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardEdit className="h-5 w-5" />
+              경기를 찾을 수 없습니다
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="mb-4">요청하신 경기 정보를 찾을 수 없습니다.</p>
+            <button
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              onClick={() => router.back()}
+            >
+              이전 페이지로 돌아가기
+            </button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -112,19 +122,30 @@ export default function MatchResultPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <h1 className="text-2xl font-bold mb-6">경기 결과 업데이트</h1>
-      <MatchResultForm
-        match={matchData}
-        attendanceList={attendanceList || []}
-        onSubmit={handleSubmit}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["matches"] });
-          queryClient.invalidateQueries({ queryKey: ["match", matchId] });
-          queryClient.invalidateQueries({ queryKey: ["attendance", matchId] });
-        }}
-        isUpdating={isUpdating}
-      />
+    <div className="container max-w-4xl mx-auto py-8">
+      <Card className="overflow-hidden border-0 shadow-md mb-6">
+        <CardHeader className="bg-gradient-to-r from-purple-900 to-blue-800 text-white">
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            경기 결과 업데이트
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <MatchResultForm
+            match={matchData}
+            attendanceList={attendanceList || []}
+            onSubmit={handleSubmit}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["matches"] });
+              queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+              queryClient.invalidateQueries({
+                queryKey: ["attendance", matchId],
+              });
+            }}
+            isUpdating={isUpdating}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

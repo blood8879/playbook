@@ -35,7 +35,7 @@ export function MatchActions({
   if (!isAdmin) return null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">경기 결과 수정</h2>
@@ -43,9 +43,11 @@ export function MatchActions({
             경기 결과를 수정할 수 있습니다.
           </p>
           {isOpponentTeamUndecided && (
-            <div className="mt-2 flex items-center text-amber-600 text-sm">
-              <AlertTriangle className="w-4 h-4 mr-1" />
-              상대팀이 미정인 경우 경기 결과를 업데이트할 수 없습니다.
+            <div className="mt-2 flex items-center text-amber-600 text-sm bg-amber-50 p-2 rounded">
+              <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" />
+              <span>
+                상대팀이 미정인 경우 경기 결과를 업데이트할 수 없습니다.
+              </span>
             </div>
           )}
         </div>
@@ -59,6 +61,7 @@ export function MatchActions({
           <Button
             onClick={() => router.push(`/matches/${matchData.id}/result`)}
             disabled={isOpponentTeamUndecided}
+            className="bg-purple-900 hover:bg-purple-800"
           >
             <Edit className="w-4 h-4 mr-2" />
             경기 결과 업데이트
