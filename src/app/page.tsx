@@ -256,7 +256,7 @@ export default async function HomePage() {
                               <Shield className="mr-2 h-4 w-4" />팀 정보 관리
                             </Button>
                           </Link>
-                          <Link href={`/teams/${team.id}/matches`}>
+                          {/* <Link href={`/teams/${team.id}/matches`}>
                             <Button
                               variant="outline"
                               className="w-full justify-start"
@@ -264,7 +264,7 @@ export default async function HomePage() {
                               <Calendar className="mr-2 h-4 w-4" />
                               경기 일정 관리
                             </Button>
-                          </Link>
+                          </Link> */}
                         </div>
                       </CardContent>
                     </Card>
