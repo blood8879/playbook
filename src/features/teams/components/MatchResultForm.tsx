@@ -34,7 +34,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase";
 import { useSupabase } from "@/lib/supabase/client";
 
 interface MatchResultFormProps {
@@ -77,6 +76,9 @@ export function MatchResultForm({
 
   // 수동 입력 모드 상태
   const [isManualMode, setIsManualMode] = useState(false);
+
+  // 자동 스크롤 상태 추가
+  const [autoScroll, setAutoScroll] = useState(false);
 
   // 실제 사용될 스코어 (수동 모드인 경우 수동 점수, 자동 모드인 경우 계산된 점수)
   const homeScore = isManualMode ? manualHomeScore : calculatedHomeScore;
@@ -184,8 +186,8 @@ export function MatchResultForm({
       },
     }));
 
-    // 참석으로 변경된 경우 스탯 테이블로 스크롤
-    if (value === "attending" && statsTableRef.current) {
+    // 자동 스크롤 옵션이 활성화된 경우에만 스크롤
+    if (autoScroll && value === "attending" && statsTableRef.current) {
       setTimeout(() => {
         statsTableRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
@@ -577,7 +579,16 @@ export function MatchResultForm({
         </Card>
       )}
 
-      <div className="mt-6 flex justify-end">
+      {/* 결과 저장 버튼 위에 자동 스크롤 토글 추가 */}
+      <div className="mt-6 flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="auto-scroll"
+            checked={autoScroll}
+            onCheckedChange={setAutoScroll}
+          />
+          <Label htmlFor="auto-scroll">참석 변경 시 자동 스크롤</Label>
+        </div>
         <Button
           onClick={handleSubmit}
           disabled={isUpdating}
