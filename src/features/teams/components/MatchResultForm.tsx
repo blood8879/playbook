@@ -1,3 +1,4 @@
+// features/teams/components/MatchResultForm.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -22,8 +23,19 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TeamMatch, MatchAttendance } from "@/features/teams/types/index";
 import { Badge } from "@/components/ui/badge";
-import { Users, Home, ExternalLink, TrendingUp } from "lucide-react";
+import {
+  Users,
+  Home,
+  ExternalLink,
+  TrendingUp,
+  Calculator,
+  Edit,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/lib/supabase";
+import { useSupabase } from "@/lib/supabase/client";
 
 interface MatchResultFormProps {
   match: TeamMatch;
@@ -41,6 +53,7 @@ export function MatchResultForm({
   isUpdating,
 }: MatchResultFormProps) {
   const statsTableRef = useRef<HTMLDivElement>(null);
+  const { supabase } = useSupabase();
   const [playerStats, setPlayerStats] = useState<{
     [key: string]: {
       attendance: "attending" | "absent" | "maybe";
@@ -54,9 +67,20 @@ export function MatchResultForm({
   }>({});
   const queryClient = useQueryClient();
 
-  // 팀별 총 골 계산
-  const [homeScore, setHomeScore] = useState(0);
-  const [awayScore, setAwayScore] = useState(0);
+  // 자동 계산된 점수와 수동 입력 점수 분리
+  const [calculatedHomeScore, setCalculatedHomeScore] = useState(0);
+  const [calculatedAwayScore, setCalculatedAwayScore] = useState(0);
+
+  // 수동 입력 점수 상태
+  const [manualHomeScore, setManualHomeScore] = useState(0);
+  const [manualAwayScore, setManualAwayScore] = useState(0);
+
+  // 수동 입력 모드 상태
+  const [isManualMode, setIsManualMode] = useState(false);
+
+  // 실제 사용될 스코어 (수동 모드인 경우 수동 점수, 자동 모드인 경우 계산된 점수)
+  const homeScore = isManualMode ? manualHomeScore : calculatedHomeScore;
+  const awayScore = isManualMode ? manualAwayScore : calculatedAwayScore;
 
   // 홈팀과 원정팀 ID
   const homeTeamId = match.is_home
@@ -136,12 +160,18 @@ export function MatchResultForm({
       }
     });
 
-    setHomeScore(homeTotal);
-    setAwayScore(awayTotal);
+    setCalculatedHomeScore(homeTotal);
+    setCalculatedAwayScore(awayTotal);
+
+    // 처음 자동 계산 결과를 수동 입력의 초기값으로 설정
+    if (manualHomeScore === 0 && manualAwayScore === 0) {
+      setManualHomeScore(homeTotal);
+      setManualAwayScore(awayTotal);
+    }
   }, [playerStats, homeTeamId, awayTeamId]);
 
-  // 참석 상태 변경 시 낙관적 UI 업데이트
-  const handleAttendanceChange = (
+  // 참석 상태 변경 시 낙관적 UI 업데이트 및 서버 업데이트
+  const handleAttendanceChange = async (
     userId: string,
     value: "attending" | "absent" | "maybe"
   ) => {
@@ -159,6 +189,21 @@ export function MatchResultForm({
       setTimeout(() => {
         statsTableRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
+    }
+
+    // 서버에 참석 상태 업데이트
+    try {
+      const { error } = await supabase
+        .from("match_attendance")
+        .update({ status: value, updated_at: new Date().toISOString() })
+        .eq("match_id", match.id)
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("참석 상태 업데이트 오류:", error);
+      }
+    } catch (error) {
+      console.error("참석 상태 업데이트 중 오류 발생:", error);
     }
 
     // 참석 현황 쿼리 무효화 (낙관적 업데이트 후 서버 데이터와 동기화)
@@ -184,15 +229,47 @@ export function MatchResultForm({
     }));
   };
 
+  // 모드 전환 시 자동 계산된 값을 수동 입력 초기값으로 설정
+  const handleModeToggle = () => {
+    if (!isManualMode) {
+      setManualHomeScore(calculatedHomeScore);
+      setManualAwayScore(calculatedAwayScore);
+    }
+    setIsManualMode(!isManualMode);
+  };
+
   const handleSubmit = async () => {
     try {
-      // 스코어 정보 추가
+      // 참석 상태 변경사항 서버에 일괄 저장
+      const attendanceUpdates = Object.entries(playerStats).map(
+        ([userId, stats]) => ({
+          match_id: match.id,
+          user_id: userId,
+          status: stats.attendance,
+          team_id: stats.teamId,
+          updated_at: new Date().toISOString(),
+        })
+      );
+
+      // 참석 상태 일괄 업데이트 (upsert)
+      if (attendanceUpdates.length > 0) {
+        const { error: attendanceError } = await supabase
+          .from("match_attendance")
+          .upsert(attendanceUpdates, { onConflict: "match_id,user_id" });
+
+        if (attendanceError) {
+          console.error("참석 상태 일괄 업데이트 오류:", attendanceError);
+        }
+      }
+
+      // 스코어 정보와 모드 정보 추가
       const resultData = {
         playerStats,
         matchScore: {
           homeScore,
           awayScore,
         },
+        isManualMode,
       };
 
       await onSubmit(resultData);
@@ -202,6 +279,9 @@ export function MatchResultForm({
       queryClient.invalidateQueries({ queryKey: ["matches"] });
       queryClient.invalidateQueries({ queryKey: ["match", match.id] });
       queryClient.invalidateQueries({ queryKey: ["attendances"] });
+      queryClient.invalidateQueries({
+        queryKey: ["matchAttendanceList", match.id],
+      });
     } catch (error) {
       console.error("Failed to save match result:", error);
     }
@@ -290,25 +370,79 @@ export function MatchResultForm({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
+          {/* 수동/자동 모드 전환 토글 */}
+          <div className="flex items-center justify-end space-x-2 mb-4">
+            <Calculator
+              className={`h-4 w-4 ${
+                isManualMode ? "text-gray-400" : "text-blue-600"
+              }`}
+            />
+            <Switch
+              checked={isManualMode}
+              onCheckedChange={handleModeToggle}
+              id="score-mode-toggle"
+            />
+            <Edit
+              className={`h-4 w-4 ${
+                isManualMode ? "text-blue-600" : "text-gray-400"
+              }`}
+            />
+            <Label htmlFor="score-mode-toggle" className="text-sm font-medium">
+              {isManualMode ? "수동 입력 모드" : "자동 계산 모드"}
+            </Label>
+          </div>
+
           <div className="flex items-center justify-center gap-8 py-4">
             <div className="text-center">
               <div className="text-lg font-medium mb-2">
                 {homeTeamName || "홈팀"}
               </div>
-              <div className="text-5xl font-bold text-blue-600">
-                {homeScore}
-              </div>
+              {isManualMode ? (
+                <div className="w-24 mx-auto">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={manualHomeScore}
+                    onChange={(e) =>
+                      setManualHomeScore(parseInt(e.target.value) || 0)
+                    }
+                    className="text-center text-2xl font-bold text-blue-600"
+                  />
+                </div>
+              ) : (
+                <div className="text-5xl font-bold text-blue-600">
+                  {calculatedHomeScore}
+                </div>
+              )}
             </div>
             <div className="text-3xl font-bold text-gray-400">vs</div>
             <div className="text-center">
               <div className="text-lg font-medium mb-2">
                 {awayTeamName || "원정팀"}
               </div>
-              <div className="text-5xl font-bold text-red-600">{awayScore}</div>
+              {isManualMode ? (
+                <div className="w-24 mx-auto">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={manualAwayScore}
+                    onChange={(e) =>
+                      setManualAwayScore(parseInt(e.target.value) || 0)
+                    }
+                    className="text-center text-2xl font-bold text-red-600"
+                  />
+                </div>
+              ) : (
+                <div className="text-5xl font-bold text-red-600">
+                  {calculatedAwayScore}
+                </div>
+              )}
             </div>
           </div>
           <p className="text-center text-sm text-muted-foreground mt-4">
-            * 참석자의 골 기록에 따라 자동으로 계산됩니다
+            {isManualMode
+              ? "* 수동 입력 모드: 용병 참여나 게스트팀의 득점을 포함한 최종 스코어를 직접 입력합니다."
+              : "* 자동 계산 모드: 등록된 참석자의 골 기록에 따라 자동으로 계산됩니다."}
           </p>
         </CardContent>
       </Card>
@@ -456,7 +590,7 @@ export function MatchResultForm({
   );
 }
 
-// 선수 스탯 테이블 컴포넌트
+// 선수 스탯 테이블 컴포넌트는 변경 없음
 function PlayerStatsTable({
   players,
   playerStats,

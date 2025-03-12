@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/lib/supabase/client";
 import {
   getMatchAttendance,
@@ -11,6 +11,13 @@ import {
 
 export function useMatchAttendance(matchId: string) {
   const { supabase, user } = useSupabase();
+
+  const queryClient = useQueryClient();
+
+  // 로컬 상태를 사용하여 캐시가 초기화되더라도 UI 상태 유지
+  const [attendanceCache, setAttendanceCache] = useState<{
+    [key: string]: "attending" | "absent" | "maybe";
+  }>({});
 
   // 현재 사용자 참석 상태 조회
   const {
@@ -23,7 +30,7 @@ export function useMatchAttendance(matchId: string) {
     enabled: !!user && !!matchId,
   });
 
-  // 전체 참석 현황 조회
+  // 전체 참석 현황 조회 - staleTime을 더 길게 설정하여 자동 갱신 빈도 줄이기
   const {
     data: attendanceList,
     refetch: refetchAttendanceList,
@@ -32,7 +39,8 @@ export function useMatchAttendance(matchId: string) {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
-    refetchOnWindowFocus: false, // 윈도우 포커스 시 재조회
+    staleTime: 30 * 60 * 1000, // 30분으로 증가
+    refetchOnWindowFocus: false, // 창 포커스 시 자동 갱신 비활성화
   });
 
   // 로컬 상태로 참석 여부 관리
@@ -47,10 +55,41 @@ export function useMatchAttendance(matchId: string) {
     }
   }, [attendanceStatus]);
 
-  // 참석 상태 업데이트 뮤테이션
+  // 참석 상태 업데이트 뮤테이션 - 낙관적 업데이트 추가
   const { mutate: updateAttendance, isPending: isUpdating } = useMutation({
     mutationFn: (status: "attending" | "absent" | "maybe") =>
       setMatchAttendance(supabase, matchId, user?.id || "", status),
+    onMutate: async (newStatus) => {
+      // 이전 쿼리 데이터 백업
+      await queryClient.cancelQueries({
+        queryKey: ["matchAttendanceList", matchId],
+      });
+      const previousAttendanceList = queryClient.getQueryData([
+        "matchAttendanceList",
+        matchId,
+      ]);
+
+      // 낙관적 업데이트
+      if (user?.id && attendanceList) {
+        queryClient.setQueryData(
+          ["matchAttendanceList", matchId],
+          attendanceList.map((item) =>
+            item.user_id === user.id ? { ...item, status: newStatus } : item
+          )
+        );
+      }
+
+      return { previousAttendanceList };
+    },
+    onError: (err, newStatus, context) => {
+      // 에러 발생 시 이전 데이터로 롤백
+      if (context?.previousAttendanceList) {
+        queryClient.setQueryData(
+          ["matchAttendanceList", matchId],
+          context.previousAttendanceList
+        );
+      }
+    },
     onSuccess: () => {
       // 상태 변경 후 참석 현황도 함께 재조회
       refetchAttendance();
