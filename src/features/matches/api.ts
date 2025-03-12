@@ -189,16 +189,18 @@ export async function createMatch(matchData: MatchFormValues): Promise<any> {
     }
 
     // match_date와 match_time을 결합하여 하나의 timestamp로 변환
+    const matchDate = new Date(matchData.match_date);
     const [hours, minutes] = matchData.match_time.split(":").map(Number);
-    const matchDateTime = new Date(matchData.match_date);
-    matchDateTime.setHours(hours, minutes, 0, 0);
+
+    matchDate.setHours(hours, minutes, 0, 0);
+    const matchDateTime = matchDate.toISOString();
 
     // 경기 생성
     const { data, error } = await supabase
       .from("matches")
       .insert({
         team_id: matchData.team_id,
-        match_date: matchDateTime.toISOString(),
+        match_date: matchDateTime,
         registration_deadline: format(
           matchData.registration_deadline,
           "yyyy-MM-dd"

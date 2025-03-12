@@ -32,9 +32,7 @@ export function useMatchAttendance(matchId: string) {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
-    staleTime: 0, // 항상 최신 데이터 요청
-    refetchOnMount: true, // 컴포넌트 마운트 시 항상 재조회
-    refetchOnWindowFocus: true, // 윈도우 포커스 시 재조회
+    refetchOnWindowFocus: false, // 윈도우 포커스 시 재조회
   });
 
   // 로컬 상태로 참석 여부 관리

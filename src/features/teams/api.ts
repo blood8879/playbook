@@ -717,31 +717,54 @@ export async function setMatchAttendance(
   );
 
   try {
-    // 먼저 기존 엔트리 삭제 (중복 방지)
-    const { error: deleteError } = await supabase
+    // 기존 엔트리 확인
+    const { data: existingAttendance, error: checkError } = await supabase
       .from("match_attendance")
-      .delete()
+      .select("id, team_id")
       .eq("match_id", matchId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    if (deleteError) {
-      console.error("기존 참석 정보 삭제 중 오류:", deleteError);
+    if (checkError && checkError.code !== "PGRST116") {
+      console.error("참석 정보 확인 중 오류:", checkError);
+      throw checkError;
     }
 
-    // 새 엔트리 추가
-    const { data, error } = await supabase.from("match_attendance").insert({
-      match_id: matchId,
-      user_id: userId,
-      status: status,
-    });
+    // 기존 엔트리가 있으면 업데이트, 없으면 신규 생성
+    if (existingAttendance) {
+      const { data, error } = await supabase
+        .from("match_attendance")
+        .update({ status: status, updated_at: new Date().toISOString() })
+        .eq("id", existingAttendance.id)
+        .select();
 
-    if (error) {
-      console.error("참석 정보 추가 중 오류:", error);
-      throw error;
+      if (error) {
+        console.error("참석 정보 업데이트 중 오류:", error);
+        throw error;
+      }
+
+      return data;
+    } else {
+      // 새 엔트리 추가
+      const { data, error } = await supabase
+        .from("match_attendance")
+        .insert({
+          match_id: matchId,
+          user_id: userId,
+          status: status,
+          team_id: null, // 팀 ID는 필요한 경우 추가
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select();
+
+      if (error) {
+        console.error("참석 정보 추가 중 오류:", error);
+        throw error;
+      }
+
+      return data;
     }
-
-    console.log("참석 상태 업데이트 완료:", status);
-    return data;
   } catch (error) {
     console.error("참석 상태 업데이트 중 예외 발생:", error);
     throw error;

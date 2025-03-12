@@ -259,7 +259,8 @@ export function useMatchDetail() {
     (!matchData?.opponent_team_id && !matchData?.opponent_guest_team_id);
 
   // 관리자 권한 확인
-  const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
+  const isAdmin =
+    teamMember?.role === "owner" || teamMember?.role === "manager";
 
   // 페이지 로드 시 데이터 새로고침
   const refreshMatchData = () => {

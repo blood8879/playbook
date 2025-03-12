@@ -214,29 +214,53 @@ export function MatchResultForm({
       attendance.status === "attending"
   );
 
-  const nonAttendingPlayers = attendanceList?.filter((attendance) => {
-    const status =
-      playerStats[attendance.user_id]?.attendance || attendance.status;
-    return status === "absent" || status === "maybe";
-  });
+  const nonAttendingPlayers = attendanceList
+    ?.filter((attendance) => {
+      const status =
+        playerStats[attendance.user_id]?.attendance || attendance.status;
+      return status === "absent" || status === "maybe";
+    })
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
   // 팀별로 참석자 분류
-  const homeTeamPlayers = attendingPlayers?.filter(
-    (attendance) =>
-      attendance.team_id === homeTeamId ||
-      playerStats[attendance.user_id]?.teamId === homeTeamId
-  );
+  const homeTeamPlayers = attendingPlayers
+    ?.filter(
+      (attendance) =>
+        attendance.team_id === homeTeamId ||
+        playerStats[attendance.user_id]?.teamId === homeTeamId
+    )
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
-  const awayTeamPlayers = attendingPlayers?.filter(
-    (attendance) =>
-      attendance.team_id === awayTeamId ||
-      playerStats[attendance.user_id]?.teamId === awayTeamId
-  );
+  const awayTeamPlayers = attendingPlayers
+    ?.filter(
+      (attendance) =>
+        attendance.team_id === awayTeamId ||
+        playerStats[attendance.user_id]?.teamId === awayTeamId
+    )
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
-  const unassignedPlayers = attendingPlayers?.filter(
-    (attendance) =>
-      !attendance.team_id && !playerStats[attendance.user_id]?.teamId
-  );
+  const unassignedPlayers = attendingPlayers
+    ?.filter(
+      (attendance) =>
+        !attendance.team_id && !playerStats[attendance.user_id]?.teamId
+    )
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
   // 선수의 팀 표시를 위한 함수
   const getTeamBadge = (teamId?: string) => {

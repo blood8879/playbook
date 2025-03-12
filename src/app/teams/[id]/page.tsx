@@ -72,7 +72,8 @@ export default function TeamDetailPage() {
     },
     enabled: !!user && !!teamId,
   });
-  const isAdmin = teamMember?.role === "owner" || teamMember?.role === "admin";
+  const isAdmin =
+    teamMember?.role === "owner" || teamMember?.role === "manager";
   const isLeader = team?.leader_id === user?.id;
   const canManageMatches = isLeader || isAdmin;
 

@@ -200,22 +200,21 @@ export function useMatchForm(userId: string) {
       }
 
       // 날짜 형식 처리 개선
-      const formattedMatchDate =
-        values.match_date instanceof Date
-          ? values.match_date.toISOString() // 전체 ISO 문자열 사용
-          : values.match_date;
-
       const formattedDeadline =
         values.registration_deadline instanceof Date
           ? values.registration_deadline.toISOString() // 전체 ISO 문자열 사용
           : values.registration_deadline;
+
+      const matchDate = new Date(values.match_date);
+      const [hours, minutes] = values.match_time.split(":").map(Number);
+      matchDate.setHours(hours, minutes, 0, 0);
+      const formattedMatchDate = matchDate.toISOString();
 
       // 데이터 준비 및 로깅
       const matchData = {
         team_id: teamData?.team?.id,
         match_date: formattedMatchDate,
         registration_deadline: formattedDeadline,
-
         opponent_team_id:
           values.opponent_type === "registered"
             ? values.opponent_team_id

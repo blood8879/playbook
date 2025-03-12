@@ -38,16 +38,28 @@ export function MatchAttendance({
   isUpdating,
 }: MatchAttendanceProps) {
   // 홈팀과 원정팀 참석자 분리
-  const homeTeamAttendees = attendanceList.filter(
-    (a) =>
-      a.team_id === matchData?.team?.id || (!a.team_id && matchData?.is_home)
-  );
+  const homeTeamAttendees = attendanceList
+    .filter(
+      (a) =>
+        a.team_id === matchData?.team?.id || (!a.team_id && matchData?.is_home)
+    )
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
-  const awayTeamAttendees = attendanceList.filter(
-    (a) =>
-      a.team_id === matchData?.opponent_team?.id ||
-      (!a.team_id && !matchData?.is_home)
-  );
+  const awayTeamAttendees = attendanceList
+    .filter(
+      (a) =>
+        a.team_id === matchData?.opponent_team?.id ||
+        (!a.team_id && !matchData?.is_home)
+    )
+    .sort((a, b) => {
+      const nameA = a.profiles?.name || a.profiles?.email || "";
+      const nameB = b.profiles?.name || b.profiles?.email || "";
+      return nameA.localeCompare(nameB);
+    });
 
   return (
     <div className="p-6">
