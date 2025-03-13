@@ -103,8 +103,49 @@ export function useMatchForm(userId: string) {
 
       setIsLoading(true);
       try {
-        const data = await fetchTeamData(userId);
+        // URL에서 팀 ID 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const teamIdFromUrl = urlParams.get("team");
+
+        console.log("teamIdFromUrl", teamIdFromUrl);
+
+        // 사용자가 속한 팀 목록 가져오기
+        const { data: teamMembers, error: teamMemberError } = await supabase
+          .from("team_members")
+          .select("team_id")
+          .eq("user_id", userId);
+
+        if (teamMemberError) throw teamMemberError;
+        if (!teamMembers || teamMembers.length === 0) {
+          toast({
+            title: "오류",
+            description: "소속된 팀이 없습니다.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // URL에서 가져온 팀 ID가 사용자의 팀 중 하나인지 확인
+        let selectedTeamId;
+
+        if (
+          teamIdFromUrl &&
+          teamMembers.some((tm) => tm.team_id === teamIdFromUrl)
+        ) {
+          // URL에서 가져온 팀 ID가 사용자의 팀 중 하나이면 해당 팀 사용
+          selectedTeamId = teamIdFromUrl;
+        } else {
+          // 아니면 첫 번째 팀 사용
+          selectedTeamId = teamMembers[0].team_id;
+        }
+
+        // 선택된 팀 ID로 팀 데이터 로드
+        const data = await fetchTeamData(selectedTeamId);
         setTeamData(data);
+
+        // 폼에 팀 ID 설정
+        form.setValue("team_id", selectedTeamId);
       } catch (error) {
         console.error("팀 데이터 로드 오류:", error);
         toast({
@@ -118,7 +159,7 @@ export function useMatchForm(userId: string) {
     };
 
     loadTeamData();
-  }, [userId, toast]);
+  }, [userId, toast, supabase, form]);
 
   // 폼 제출 핸들러
   const onSubmit = async (values: MatchFormValues) => {
@@ -158,18 +199,6 @@ export function useMatchForm(userId: string) {
       }
 
       console.log("values", values);
-
-      // if (
-      //   values.opponent_type === "guest" &&
-      //   !values.opponent_guest_team_name
-      // ) {
-      //   toast({
-      //     title: "상대팀 정보 오류",
-      //     description: "게스트 팀 이름을 입력해주세요.",
-      //     variant: "destructive",
-      //   });
-      //   return;
-      // }
 
       // 게스트팀 처리 로직 수정
       let guestTeamId = null;
@@ -245,6 +274,9 @@ export function useMatchForm(userId: string) {
 
       console.log("생성된 경기 정보:", match);
 
+      // 우리 팀 플레이어들의 사용자 ID 목록 생성
+      const registeredUserIds = new Set();
+
       // 우리 팀 소속 플레이어들 가져오기
       const { data: teamMembers, error: teamMembersError } = await supabase
         .from("team_members")
@@ -256,14 +288,17 @@ export function useMatchForm(userId: string) {
         console.error("팀 멤버 조회 오류:", teamMembersError);
       } else if (teamMembers && teamMembers.length > 0) {
         // 우리 팀 플레이어들을 미정 상태로 등록
-        const matchPlayers = teamMembers.map((member) => ({
-          match_id: match.id,
-          user_id: member.user_id,
-          status: "maybe", // 미정 상태
-          team_id: teamData?.team?.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
+        const matchPlayers = teamMembers.map((member) => {
+          registeredUserIds.add(member.user_id); // 등록된 사용자 ID 추가
+          return {
+            match_id: match.id,
+            user_id: member.user_id,
+            status: "maybe", // 미정 상태
+            team_id: teamData?.team?.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        });
 
         const { error: insertError } = await supabase
           .from("match_attendance")
@@ -286,22 +321,31 @@ export function useMatchForm(userId: string) {
         if (opponentTeamMembersError) {
           console.error("상대팀 멤버 조회 오류:", opponentTeamMembersError);
         } else if (opponentTeamMembers && opponentTeamMembers.length > 0) {
-          // 상대팀 플레이어들을 미정 상태로 등록
-          const opponentMatchPlayers = opponentTeamMembers.map((member) => ({
-            match_id: match.id,
-            user_id: member.user_id,
-            status: "maybe", // 미정 상태
-            team_id: values.opponent_team_id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }));
+          // 아직 등록되지 않은 사용자만 필터링
+          const uniqueOpponentMembers = opponentTeamMembers.filter(
+            (member) => !registeredUserIds.has(member.user_id)
+          );
 
-          const { error: insertOpponentError } = await supabase
-            .from("match_attendance")
-            .insert(opponentMatchPlayers);
+          if (uniqueOpponentMembers.length > 0) {
+            // 상대팀 플레이어들을 미정 상태로 등록
+            const opponentMatchPlayers = uniqueOpponentMembers.map(
+              (member) => ({
+                match_id: match.id,
+                user_id: member.user_id,
+                status: "maybe", // 미정 상태
+                team_id: values.opponent_team_id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+            );
 
-          if (insertOpponentError) {
-            console.error("상대팀 참석 정보 등록 오류:", insertOpponentError);
+            const { error: insertOpponentError } = await supabase
+              .from("match_attendance")
+              .insert(opponentMatchPlayers);
+
+            if (insertOpponentError) {
+              console.error("상대팀 참석 정보 등록 오류:", insertOpponentError);
+            }
           }
         }
       }

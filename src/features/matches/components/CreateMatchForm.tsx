@@ -71,6 +71,8 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
     handleStadiumSaved,
   } = useMatchForm(userId);
 
+  console.log("teamData", teamData);
+
   // 팀 검색 훅 사용
   const { searchTerm, setSearchTerm, searchResults, isSearching, error } =
     useTeamSearch();

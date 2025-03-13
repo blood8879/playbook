@@ -7,34 +7,26 @@ import { createClient } from "@supabase/supabase-js";
 import { format } from "date-fns";
 
 // 팀 데이터 가져오기
-export async function fetchTeamData(userId: string) {
+export async function fetchTeamData(teamId: string) {
   try {
-    // 사용자가 속한 팀 정보 가져오기
-    const { data: teamMember, error: teamMemberError } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", userId)
-      .single();
-
-    if (teamMemberError) throw teamMemberError;
-
-    if (!teamMember) {
-      throw new Error("팀 정보를 찾을 수 없습니다.");
-    }
-
+    // 팀 정보 가져오기
     const { data: team, error: teamError } = await supabase
       .from("teams")
       .select("*")
-      .eq("id", teamMember.team_id)
+      .eq("id", teamId)
       .single();
 
     if (teamError) throw teamError;
+
+    if (!team) {
+      throw new Error("팀 정보를 찾을 수 없습니다.");
+    }
 
     // 팀에 속한 경기장 정보 가져오기
     const { data: stadiums, error: stadiumsError } = await supabase
       .from("stadiums")
       .select("*")
-      .eq("team_id", teamMember.team_id);
+      .eq("team_id", teamId);
 
     if (stadiumsError) throw stadiumsError;
 
@@ -42,9 +34,7 @@ export async function fetchTeamData(userId: string) {
     const { data: teams, error: teamsError } = await supabase
       .from("teams")
       .select("*")
-      .neq("id", teamMember.team_id);
-
-    console.log("teams", teams);
+      .neq("id", teamId);
 
     if (teamsError) throw teamsError;
 
