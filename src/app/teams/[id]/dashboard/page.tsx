@@ -394,6 +394,7 @@ export default function TeamDashboardPage() {
           .from("matches")
           .select("id")
           .eq("team_id", teamId)
+          .eq("is_finished", true)
           .gte("match_date", startDateStr)
           .lte("match_date", endDateStr);
 
@@ -461,7 +462,7 @@ export default function TeamDashboardPage() {
         // 출석률 기준 내림차순 정렬 후 상위 5명만 반환
         return playerAttendances
           .sort((a, b) => b.attendanceRate - a.attendanceRate)
-          .slice(0, 5);
+          .slice(0, 10);
       } catch (error) {
         console.error("플레이어별 출석률 정보 조회 중 오류:", error);
         return [];
@@ -565,7 +566,7 @@ export default function TeamDashboardPage() {
         // 배열로 변환하고 득점 수 기준으로 정렬
         const formattedData = Object.values(playerGoals)
           .sort((a, b) => b.goals - a.goals)
-          .slice(0, 5);
+          .slice(0, 10);
 
         console.log("집계된 득점자 데이터:", formattedData);
         return formattedData;
@@ -661,7 +662,7 @@ export default function TeamDashboardPage() {
         // 배열로 변환하고 어시스트 수 기준으로 정렬
         const formattedData = Object.values(playerAssists)
           .sort((a, b) => b.assists - a.assists)
-          .slice(0, 5);
+          .slice(0, 10);
 
         console.log("집계된 어시스트 데이터:", formattedData);
         return formattedData;
@@ -755,7 +756,7 @@ export default function TeamDashboardPage() {
         // 배열로 변환하고 MOM 횟수 기준으로 정렬
         const result = Object.values(momCounts)
           .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
+          .slice(0, 10);
 
         console.log("집계된 MOM 데이터:", result);
         return result;
@@ -1176,7 +1177,7 @@ export default function TeamDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
@@ -1185,7 +1186,12 @@ export default function TeamDashboardPage() {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" width={100} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={100}
+                        tickFormatter={(value) => value}
+                      />
                       <Tooltip />
                       <Bar dataKey="goals" name="득점" fill="#4ade80">
                         {(topScorers || defaultTopScorers)?.map(
@@ -1214,7 +1220,7 @@ export default function TeamDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
@@ -1223,7 +1229,12 @@ export default function TeamDashboardPage() {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" width={100} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={100}
+                        tickFormatter={(value) => value}
+                      />
                       <Tooltip />
                       <Bar dataKey="assists" name="어시스트" fill="#60a5fa">
                         {(topAssists || defaultTopAssists)?.map(
@@ -1252,7 +1263,7 @@ export default function TeamDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
@@ -1261,7 +1272,12 @@ export default function TeamDashboardPage() {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" width={100} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={100}
+                        tickFormatter={(value) => value}
+                      />
                       <Tooltip />
                       <Bar dataKey="count" name="MOM 횟수" fill="#fbbf24">
                         {(momStats || defaultMomStats)?.map((entry, index) => (
@@ -1288,7 +1304,7 @@ export default function TeamDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
@@ -1297,7 +1313,12 @@ export default function TeamDashboardPage() {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="name" width={100} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={100}
+                        tickFormatter={(value) => value}
+                      />
                       <Tooltip formatter={(value) => [`${value}%`, "출석률"]} />
                       <Bar
                         dataKey="attendanceRate"
