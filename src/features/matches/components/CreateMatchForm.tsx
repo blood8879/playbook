@@ -55,9 +55,10 @@ import { useQuery } from "@tanstack/react-query";
 
 interface CreateMatchFormProps {
   userId: string;
+  teamId?: string; // 특정 팀 ID 추가
 }
 
-export function CreateMatchForm({ userId }: CreateMatchFormProps) {
+export function CreateMatchForm({ userId, teamId }: CreateMatchFormProps) {
   const { supabase } = useSupabase();
   const {
     form,
@@ -69,7 +70,8 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
     setIsStadiumDialogOpen,
     onSubmit,
     handleStadiumSaved,
-  } = useMatchForm(userId);
+    handleTeamChange,
+  } = useMatchForm(userId, teamId);
 
   console.log("teamData", teamData);
 
@@ -148,6 +150,50 @@ export function CreateMatchForm({ userId }: CreateMatchFormProps) {
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* 사용자가 속한 팀이 여러 개이고 특정 팀 ID가 제공되지 않은 경우에만 팀 선택 UI 표시 */}
+          {!teamId && teamData?.userTeams && teamData.userTeams.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>팀 선택</CardTitle>
+                <CardDescription>경기를 생성할 팀을 선택해주세요.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="team_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>팀 선택</FormLabel>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          handleTeamChange(value);
+                        }}
+                        defaultValue={teamData.team.id}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="팀을 선택하세요" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {teamData.userTeams.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        속해 있는 여러 팀 중 하나를 선택해서 경기를 생성할 수 있습니다.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+          )}
           {/* 경기 기본 정보 */}
           <Card>
             <CardHeader>

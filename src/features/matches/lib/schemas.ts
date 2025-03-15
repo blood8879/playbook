@@ -32,8 +32,8 @@ export const matchFormSchema = z
     }),
     opponent_team_id: z.string().optional(),
     opponent_guest_team_id: z.string().optional(), // 기존 게스트팀 ID
-    opponent_guest_team_name: z.string().optional().default(""),
-    opponent_guest_team_description: z.string().optional().default(""),
+    opponent_guest_team_name: z.string().optional(),
+    opponent_guest_team_description: z.string().optional(),
     venue: z.string().min(1, "경기장 정보를 입력해주세요."),
     stadium_id: z.string().optional(),
     description: z.string().optional(),

@@ -1,16 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, use } from "react";
 import { Loader2, Calendar, AlertCircle, PlusCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateMatchForm } from "@/features/matches/components/CreateMatchForm";
 import { useSupabase } from "@/lib/supabase/client";
-import { useSearchParams } from "next/navigation";
 
-function CreateMatchContent() {
+interface TeamNewMatchPageProps {
+  params: {
+    id: string;
+  };
+}
+
+function CreateMatchContent({ teamId }: { teamId: string }) {
   const { user } = useSupabase();
-  const searchParams = useSearchParams();
-  const teamId = searchParams.get("team"); // URL 쿼리 파라미터에서 팀 ID 가져오기
 
   if (!user) {
     return (
@@ -41,14 +44,18 @@ function CreateMatchContent() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <CreateMatchForm userId={user.id} teamId={teamId || undefined} />
+          <CreateMatchForm userId={user.id} teamId={teamId} />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-export default function CreateMatchPage() {
+export default function TeamNewMatchPage({ params }: TeamNewMatchPageProps) {
+  // params를 React.use()를 사용하여 언래핑
+  const resolvedParams = use(params);
+  const teamId = resolvedParams.id;
+
   return (
     <Suspense
       fallback={
@@ -67,7 +74,7 @@ export default function CreateMatchPage() {
         </div>
       }
     >
-      <CreateMatchContent />
+      <CreateMatchContent teamId={teamId} />
     </Suspense>
   );
 }

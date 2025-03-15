@@ -120,6 +120,40 @@ export function useMatchAttendance(matchId: string) {
         awayMaybe: 0,
       };
 
+    // 홈팀 참석 현황 사용자
+    const homeAttendingUsers = attendanceList.filter(
+      (a) => a.status === "attending" && a.team_id === teamId
+    );
+    const homeAbsentUsers = attendanceList.filter(
+      (a) => a.status === "absent" && a.team_id === teamId
+    );
+    const homeMaybeUsers = attendanceList.filter(
+      (a) => a.status === "maybe" && a.team_id === teamId
+    );
+
+    // 원정팀 참석 현황 사용자
+    const awayAttendingUsers = attendanceList.filter(
+      (a) =>
+        a.status === "attending" && (a.team_id === opponentTeamId || !a.team_id)
+    );
+    const awayAbsentUsers = attendanceList.filter(
+      (a) =>
+        a.status === "absent" && (a.team_id === opponentTeamId || !a.team_id)
+    );
+    const awayMaybeUsers = attendanceList.filter(
+      (a) =>
+        a.status === "maybe" && (a.team_id === opponentTeamId || !a.team_id)
+    );
+
+    console.log("Filtered Users:", {
+      homeAttendingUsers,
+      homeAbsentUsers,
+      homeMaybeUsers,
+      awayAttendingUsers,
+      awayAbsentUsers,
+      awayMaybeUsers,
+    });
+
     return {
       // 전체 참석 현황
       attending:
@@ -128,37 +162,14 @@ export function useMatchAttendance(matchId: string) {
       maybe: attendanceList.filter((a) => a.status === "maybe").length || 0,
 
       // 홈팀 참석 현황
-      homeAttending:
-        attendanceList.filter(
-          (a) => a.status === "attending" && a.team_id === teamId
-        ).length || 0,
-      homeAbsent:
-        attendanceList.filter(
-          (a) => a.status === "absent" && a.team_id === teamId
-        ).length || 0,
-      homeMaybe:
-        attendanceList.filter(
-          (a) => a.status === "maybe" && a.team_id === teamId
-        ).length || 0,
+      homeAttending: homeAttendingUsers.length || 0,
+      homeAbsent: homeAbsentUsers.length || 0,
+      homeMaybe: homeMaybeUsers.length || 0,
 
       // 어웨이팀 참석 현황 (팀이 없는 사용자도 어웨이팀으로 포함)
-      awayAttending:
-        attendanceList.filter(
-          (a) =>
-            a.status === "attending" &&
-            (a.team_id === opponentTeamId || !a.team_id)
-        ).length || 0,
-      awayAbsent:
-        attendanceList.filter(
-          (a) =>
-            a.status === "absent" &&
-            (a.team_id === opponentTeamId || !a.team_id)
-        ).length || 0,
-      awayMaybe:
-        attendanceList.filter(
-          (a) =>
-            a.status === "maybe" && (a.team_id === opponentTeamId || !a.team_id)
-        ).length || 0,
+      awayAttending: awayAttendingUsers.length || 0,
+      awayAbsent: awayAbsentUsers.length || 0,
+      awayMaybe: awayMaybeUsers.length || 0,
     };
   };
 

@@ -787,68 +787,129 @@ export async function getMatchAttendanceList(
   supabase: SupabaseClient,
   matchId: string
 ): Promise<MatchAttendance[]> {
-  // 먼저 경기 정보를 가져옵니다
-  const { data: matchData, error: matchError } = await supabase
-    .from("matches")
-    .select(
+  try {
+    // 먼저 경기 정보를 가져옵니다
+    const { data: matchData, error: matchError } = await supabase
+      .from("matches")
+      .select(
+        `
+        *,
+        team:teams!matches_team_id_fkey(id),
+        opponent_team:teams!matches_opponent_team_id_fkey(id)
       `
-      *,
-      team:teams!matches_team_id_fkey(id),
-      opponent_team:teams!matches_opponent_team_id_fkey(id)
-    `
-    )
-    .eq("id", matchId)
-    .single();
-
-  if (matchError) throw matchError;
-
-  // 현재 로그인한 사용자의 ID 가져오기
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // 사용자가 속한 팀 목록 가져오기
-  const { data: userTeams } = await supabase
-    .from("team_members")
-    .select("team_id")
-    .eq("user_id", user?.id || "");
-
-  // 사용자가 속한 팀 ID 목록
-  const userTeamIds = userTeams?.map((t) => t.team_id) || [];
-
-  // 사용자가 홈팀인지 원정팀인지 확인
-  const isUserHome = userTeamIds.includes(matchData.team_id);
-  const isUserAway =
-    matchData.opponent_team_id &&
-    userTeamIds.includes(matchData.opponent_team_id);
-
-  // 참석 정보 가져오기
-  const { data, error } = await supabase
-    .from("match_attendance")
-    .select(
-      `
-      *,
-      profiles (
-        id,
-        email,
-        name,
-        team_members (
-          team_id
-        )
       )
-    `
-    )
-    .eq("match_id", matchId);
+      .eq("id", matchId)
+      .single();
 
-  if (error) throw error;
+    if (matchError) {
+      console.error("경기 정보 조회 오류:", matchError);
+      throw matchError;
+    }
 
-  // team_id 정보를 match_attendance 객체에 포함
-  const attendanceWithTeam = data.map((attendance) => ({
-    ...attendance,
-    team_id: attendance.profiles?.team_members?.[0]?.team_id,
-  }));
+    console.log("경기 정보:", matchData);
 
-  return attendanceWithTeam as MatchAttendance[];
+    // 현재 로그인한 사용자의 ID 가져오기
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 사용자가 속한 팀 목록 가져오기
+    const { data: userTeams, error: userTeamsError } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("user_id", user?.id || "");
+
+    if (userTeamsError) {
+      console.error("팀 멤버십 조회 오류:", userTeamsError);
+    }
+
+    // 사용자가 속한 팀 ID 목록
+    const userTeamIds = userTeams?.map((t) => t.team_id) || [];
+
+    // 사용자가 홈팀인지 원정팀인지 확인
+    const isUserHome = userTeamIds.includes(matchData.team_id);
+    const isUserAway =
+      matchData.opponent_team_id &&
+      userTeamIds.includes(matchData.opponent_team_id);
+
+    // 참석 정보 가져오기
+    const { data: attendanceData, error: attendanceError } = await supabase
+      .from("match_attendance")
+      .select(
+        `
+        id,
+        match_id,
+        user_id,
+        status,
+        team_id,
+        created_at,
+        updated_at,
+        profiles (
+          id,
+          email,
+          name,
+          avatar_url
+        )
+      `
+      )
+      .eq("match_id", matchId);
+
+    if (attendanceError) {
+      console.error("참석 정보 조회 오류:", attendanceError);
+      throw attendanceError;
+    }
+
+    // 참석자의 팀 정보를 정확하게 가져오기 위한 추가 조회
+    const userIds = attendanceData.map((a) => a.user_id);
+    const { data: teamMemberships, error: teamMembershipsError } = await supabase
+      .from("team_members")
+      .select("user_id, team_id")
+      .in("user_id", userIds)
+      .in("team_id", [matchData.team_id, matchData.opponent_team_id].filter(Boolean));
+
+    if (teamMembershipsError) {
+      console.error("팀 소속 정보 조회 오류:", teamMembershipsError);
+    }
+
+    // 팀 소속 정보를 맵으로 구성
+    const userTeamMap: Record<string, string> = {};
+    teamMemberships?.forEach((membership) => {
+      // 홈팀과 원정팀 괄다성을 위해 여기서 상대팀 정보를 선택적으로 사용
+      if (membership.team_id === matchData.team_id) {
+        userTeamMap[membership.user_id] = matchData.team_id;
+      } else if (membership.team_id === matchData.opponent_team_id) {
+        userTeamMap[membership.user_id] = matchData.opponent_team_id;
+      }
+    });
+
+    console.log("사용자 팀 맵:", userTeamMap);
+
+    // 참석 정보에 팀 정보 갱신
+    const attendanceWithTeam = attendanceData.map((attendance) => {
+      // 1. 이미 team_id가 있는 경우 유지
+      if (attendance.team_id) {
+        return attendance;
+      }
+      
+      // 2. 사용자의 팀 소속 정보가 있는 경우 추가
+      if (userTeamMap[attendance.user_id]) {
+        return {
+          ...attendance,
+          team_id: userTeamMap[attendance.user_id],
+        };
+      }
+
+      // 3. 그 외의 경우 그대로 반환
+      return attendance;
+    });
+
+    console.log("처리된 참석 정보:", attendanceWithTeam);
+
+    return attendanceWithTeam as MatchAttendance[];
+  } catch (error) {
+    console.error("참석 정보 조회 중 오류 발생:", error);
+    throw error;
+  }
 }
 
 // src/features/teams/api.ts 파일에서 updateMatchResult 함수 수정

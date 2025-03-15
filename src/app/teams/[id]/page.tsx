@@ -91,7 +91,7 @@ export default function TeamDetailPage() {
   });
 
   const handleCreateMatch = () => {
-    router.push(`/matches/new?team=${teamId}`);
+    router.push(`/teams/${teamId}/matches/new`);
   };
 
   // 팀이 없거나 에러가 발생한 경우
