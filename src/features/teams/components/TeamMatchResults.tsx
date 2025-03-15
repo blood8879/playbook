@@ -7,9 +7,11 @@ import { ko } from "date-fns/locale";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CalendarDays, Users } from "lucide-react";
 import { MatchTimeline } from "./MatchTimeline";
 import { TeamMatch } from "../types";
+import { useRouter } from "next/navigation";
 
 interface TeamMatchResultsProps {
   teamId: string;
@@ -17,6 +19,7 @@ interface TeamMatchResultsProps {
 
 export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
   const { supabase } = useSupabase();
+  const router = useRouter();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   // 완료된 경기 목록 조회 (홈과 원정 경기 모두 포함)
@@ -262,6 +265,10 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
 
   console.log("completedMatches", completedMatches);
 
+  const handleEditResult = (matchId: string) => {
+    router.push(`/matches/${matchId}`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -303,10 +310,22 @@ export function TeamMatchResults({ teamId }: TeamMatchResultsProps) {
                 <Users className="w-4 h-4 inline-block mr-1" />
                 {match.participants_count || 0}명 참가
               </div>
-              <div className="font-bold text-lg mt-2">
-                {match.is_home
-                  ? `${match.home_score} : ${match.away_score}`
-                  : `${match.away_score} : ${match.home_score}`}
+              <div className="flex justify-between items-center mt-2">
+                <div className="font-bold text-lg">
+                  {match.is_home
+                    ? `${match.home_score} : ${match.away_score}`
+                    : `${match.away_score} : ${match.home_score}`}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditResult(match.id);
+                  }}
+                >
+                  결과 수정
+                </Button>
               </div>
             </CardContent>
           </Card>

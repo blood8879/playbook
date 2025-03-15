@@ -1125,39 +1125,6 @@ export default function TeamDashboardPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* 플레이어별 출석률 순위 */}
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  선수별 출석률 순위
-                </h3>
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      layout="vertical"
-                      data={playerAttendances || defaultPlayerAttendances}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="name" width={100} />
-                      <Tooltip formatter={(value) => [`${value}%`, "출석률"]} />
-                      <Bar
-                        dataKey="attendanceRate"
-                        name="출석률"
-                        fill="#818cf8"
-                      >
-                        {(playerAttendances || defaultPlayerAttendances)?.map(
-                          (entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={COLORS[index % COLORS.length]}
-                            />
-                          )
-                        )}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
               </div>
             </CardContent>
           </Card>

@@ -347,6 +347,14 @@ export default function TeamDetailPage() {
                       <MapPin className="w-4 h-4 mr-2" />
                       경기장 관리
                     </TabsTrigger>
+                    <TabsTrigger
+                      value="dashboard"
+                      className="rounded-md data-[state=active]:to-indigo-50 data-[state=active]:text-blue-700 data-[state=active]:border-b-2 transition-all"
+                      onClick={() => router.push(`/teams/${teamId}/dashboard`)}
+                    >
+                      <Shield className="w-4 h-4 mr-2" />
+                      대시보드
+                    </TabsTrigger>
                   </TabsList>
                 </div>
 
