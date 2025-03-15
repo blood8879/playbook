@@ -30,7 +30,7 @@ export function useMatchAttendance(matchId: string) {
     enabled: !!user && !!matchId,
   });
 
-  // 전체 참석 현황 조회 - staleTime을 더 길게 설정하여 자동 갱신 빈도 줄이기
+  // 전체 참석 현황 조회
   const {
     data: attendanceList,
     refetch: refetchAttendanceList,
@@ -39,8 +39,7 @@ export function useMatchAttendance(matchId: string) {
     queryKey: ["matchAttendanceList", matchId],
     queryFn: () => getMatchAttendanceList(supabase, matchId),
     enabled: !!matchId,
-    staleTime: 30 * 60 * 1000, // 30분으로 증가
-    refetchOnWindowFocus: false, // 창 포커스 시 자동 갱신 비활성화
+    refetchOnWindowFocus: false,
   });
 
   // 로컬 상태로 참석 여부 관리

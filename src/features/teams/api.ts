@@ -788,7 +788,7 @@ export async function getMatchAttendanceList(
   matchId: string
 ): Promise<MatchAttendance[]> {
   try {
-    // 먼저 경기 정보를 가져옵니다
+    // 경기 정보 조회
     const { data: matchData, error: matchError } = await supabase
       .from("matches")
       .select(
@@ -808,12 +808,12 @@ export async function getMatchAttendanceList(
 
     console.log("경기 정보:", matchData);
 
-    // 현재 로그인한 사용자의 ID 가져오기
+    // 1. 현재 로그인한 사용자의 ID 가져오기
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 사용자가 속한 팀 목록 가져오기
+    // 2. 사용자가 속한 팀 목록 가져오기
     const { data: userTeams, error: userTeamsError } = await supabase
       .from("team_members")
       .select("team_id")
@@ -826,13 +826,14 @@ export async function getMatchAttendanceList(
     // 사용자가 속한 팀 ID 목록
     const userTeamIds = userTeams?.map((t) => t.team_id) || [];
 
-    // 사용자가 홈팀인지 원정팀인지 확인
+    // 3. 사용자가 홈팀인지 원정팀인지 확인
     const isUserHome = userTeamIds.includes(matchData.team_id);
     const isUserAway =
       matchData.opponent_team_id &&
       userTeamIds.includes(matchData.opponent_team_id);
 
-    // 참석 정보 가져오기
+    // 4. 참석 정보와 프로필 정보를 한번에 가져오기 (중요!)
+    // 조인 방식 변경: 조인하는 대신 무료해서 조회 후 후처리
     const { data: attendanceData, error: attendanceError } = await supabase
       .from("match_attendance")
       .select(
@@ -843,13 +844,7 @@ export async function getMatchAttendanceList(
         status,
         team_id,
         created_at,
-        updated_at,
-        profiles (
-          id,
-          email,
-          name,
-          avatar_url
-        )
+        updated_at
       `
       )
       .eq("match_id", matchId);
@@ -859,8 +854,21 @@ export async function getMatchAttendanceList(
       throw attendanceError;
     }
 
-    // 참석자의 팀 정보를 정확하게 가져오기 위한 추가 조회
+    // 5. 참석자들의 프로필 정보를 따로 가져오기
     const userIds = attendanceData.map((a) => a.user_id);
+    
+    // 프로필 정보 가져오기
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, name, email, avatar_url")
+      .in("id", userIds);
+
+    if (profilesError) {
+      console.error("프로필 정보 조회 오류:", profilesError);
+      throw profilesError;
+    }
+
+    // 6. 참석자의 팀 정보를 정확하게 가져오기
     const { data: teamMemberships, error: teamMembershipsError } = await supabase
       .from("team_members")
       .select("user_id, team_id")
@@ -874,7 +882,6 @@ export async function getMatchAttendanceList(
     // 팀 소속 정보를 맵으로 구성
     const userTeamMap: Record<string, string> = {};
     teamMemberships?.forEach((membership) => {
-      // 홈팀과 원정팀 괄다성을 위해 여기서 상대팀 정보를 선택적으로 사용
       if (membership.team_id === matchData.team_id) {
         userTeamMap[membership.user_id] = matchData.team_id;
       } else if (membership.team_id === matchData.opponent_team_id) {
@@ -882,36 +889,27 @@ export async function getMatchAttendanceList(
       }
     });
 
-    console.log("사용자 팀 맵:", userTeamMap);
-
-    // 참석 정보에 팀 정보 갱신
-    const attendanceWithTeam = attendanceData.map((attendance) => {
-      // 1. 이미 team_id가 있는 경우 유지
-      if (attendance.team_id) {
-        return attendance;
+    // 7. 최종 처리: 참석 정보와 프로필 정보 합치기
+    const result = attendanceData.map(attendance => {
+      // 참석자의 프로필 정보 찾기
+      const profile = profiles.find(p => p.id === attendance.user_id);
+      
+      // 팀 ID 처리
+      let teamId = attendance.team_id;
+      if (!teamId && userTeamMap[attendance.user_id]) {
+        teamId = userTeamMap[attendance.user_id];
       }
       
-      // 2. 사용자의 팀 소속 정보가 있는 경우 추가
-      if (userTeamMap[attendance.user_id]) {
-        return {
-          ...attendance,
-          team_id: userTeamMap[attendance.user_id],
-        };
-      }
-
-      // 3. 그 외의 경우 그대로 반환
-      return attendance;
+      // 최종 데이터 구성
+      return {
+        ...attendance,
+        team_id: teamId,
+        profiles: profile // 이제 배열이 아닌 단일 객체로 설정
+      };
     });
 
-    console.log("처리된 참석 정보:", attendanceWithTeam);
-
-    // 타입 변환 전에 profiles 배열을 단일 객체로 변환
-    const formattedAttendance = attendanceWithTeam.map((item) => ({
-      ...item,
-      profiles: item.profiles && item.profiles.length > 0 ? item.profiles[0] : undefined
-    }));
-
-    return formattedAttendance as MatchAttendance[];
+    console.log("최종 처리된 참석 정보:", result);
+    return result as MatchAttendance[];
   } catch (error) {
     console.error("참석 정보 조회 중 오류 발생:", error);
     throw error;
