@@ -905,7 +905,13 @@ export async function getMatchAttendanceList(
 
     console.log("처리된 참석 정보:", attendanceWithTeam);
 
-    return attendanceWithTeam as MatchAttendance[];
+    // 타입 변환 전에 profiles 배열을 단일 객체로 변환
+    const formattedAttendance = attendanceWithTeam.map((item) => ({
+      ...item,
+      profiles: item.profiles && item.profiles.length > 0 ? item.profiles[0] : undefined
+    }));
+
+    return formattedAttendance as MatchAttendance[];
   } catch (error) {
     console.error("참석 정보 조회 중 오류 발생:", error);
     throw error;

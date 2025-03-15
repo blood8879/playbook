@@ -343,33 +343,51 @@ export async function createMatch(matchData: MatchFormValues): Promise<any> {
     const matchDateTime = matchDate.toISOString();
 
     // 경기 생성
-    const insertData = {
+    // 타입 정의 업데이트: opponent_team_id와 opponent_guest_team_id 추가
+    type MatchInsertData = {
+      team_id: string;
+      match_date: string;
+      registration_deadline: string;
+      is_home: boolean;
+      venue: string;
+      stadium_id: string | null;
+      description: string | null;
+      competition_type: string;
+      game_type: string;
+      opponent_team_id?: string | null;
+      opponent_guest_team_id?: string | null;
+      is_tbd?: boolean;
+    };
+    
+    let insertData: MatchInsertData = {
       team_id: matchData.team_id,
       match_date: matchDateTime,
-      registration_deadline:
-        matchData.registration_deadline instanceof Date
-          ? format(matchData.registration_deadline, "yyyy-MM-dd")
-          : matchData.registration_deadline,
+      registration_deadline: matchData.registration_deadline instanceof Date
+        ? format(matchData.registration_deadline, "yyyy-MM-dd")
+        : matchData.registration_deadline,
       is_home: matchData.match_type === "home",
       venue: matchData.venue || "",
       stadium_id: matchData.stadium_id === "none" ? null : matchData.stadium_id,
       description: matchData.description || null,
       competition_type: "friendly",
-      game_type: "11vs11",
-      opponent_team_id: null,
-      opponent_guest_team_id: null,
-      is_tbd: false,
+      game_type: "11vs11"
     };
 
     // 상대팀 유형에 따라 필드 업데이트
     if (matchData.opponent_type === "registered") {
-      insertData.opponent_team_id = matchData.opponent_team_id;
-      insertData.opponent_guest_team_id = null;
-      insertData.is_tbd = false;
+      insertData = {
+        ...insertData,
+        opponent_team_id: matchData.opponent_team_id,
+        opponent_guest_team_id: null,
+        is_tbd: false
+      };
     } else if (matchData.opponent_type === "guest") {
-      insertData.opponent_team_id = null;
-      insertData.opponent_guest_team_id = opponent_guest_team_id;
-      insertData.is_tbd = false;
+      insertData = {
+        ...insertData,
+        opponent_team_id: null,
+        opponent_guest_team_id: opponent_guest_team_id,
+        is_tbd: false
+      };
 
       // 디버깅 로깅
       console.log("게스트팀 ID 확인:", opponent_guest_team_id);
@@ -380,9 +398,12 @@ export async function createMatch(matchData: MatchFormValues): Promise<any> {
       }
     } else {
       // tbd
-      insertData.opponent_team_id = null;
-      insertData.opponent_guest_team_id = null;
-      insertData.is_tbd = true;
+      insertData = {
+        ...insertData,
+        opponent_team_id: null,
+        opponent_guest_team_id: null,
+        is_tbd: true
+      };
     }
 
     console.log("최종 삽입 데이터:", JSON.stringify(insertData, null, 2));
